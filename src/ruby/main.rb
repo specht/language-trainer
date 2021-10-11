@@ -7,7 +7,6 @@ require './credentials.template.rb'
 warn_level = $VERBOSE
 $VERBOSE = nil
 require './credentials.rb'
-require '/data/config.rb'
 $VERBOSE = warn_level
 DASHBOARD_SERVICE = ENV['DASHBOARD_SERVICE']
 
