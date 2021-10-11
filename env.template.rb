@@ -18,9 +18,6 @@ WEBSITE_HOST = 'dashboard.beispielschule.de'
 # E-Mail für Letsencrypt
 LETSENCRYPT_EMAIL = 'admin@beispielschule.de'
 
-# Pfad mit Verzeichnissen für Stundenplan, SuS-Listen, etc
-INPUT_DATA_PATH = './src/example-data'
-
 # Diese Pfade sind für Development okay und sollten für
 # Produktionsumgebungen angepasst werden
 LOGS_PATH = './logs'
