@@ -98,7 +98,6 @@ docker_compose[:services][:ruby] = {
     :build => './docker/ruby',
     :volumes => ['./src/ruby:/app:ro',
                  './src/static:/static:ro',
-                 "#{INPUT_DATA_PATH}:/data:ro",
                  "#{RAW_FILES_PATH}:/raw",
                  "#{GEN_FILES_PATH}:/gen"],
     :environment => env,
