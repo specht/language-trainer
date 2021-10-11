@@ -35,6 +35,8 @@ if !DEVELOPMENT
     docker_compose[:services][:nginx][:expose] = ['80']
 end
 
+docker_compose[:services][:nginx][:links] = ["ruby:#{PROJECT_NAME}_ruby_1"]
+
 nginx_config = <<~eos
     log_format custom '$http_x_forwarded_for - $remote_user [$time_local] "$request" '
                         '$status $body_bytes_sent "$http_referer" '
@@ -108,6 +110,7 @@ docker_compose[:services][:ruby] = {
 }
 docker_compose[:services][:ruby][:depends_on] ||= []
 docker_compose[:services][:ruby][:depends_on] << :neo4j
+docker_compose[:services][:ruby][:links] = ['neo4j:neo4j']
 
 docker_compose[:services][:neo4j] = {
     :build => './docker/neo4j',
@@ -121,8 +124,6 @@ docker_compose[:services][:neo4j][:environment] = [
 docker_compose[:services][:neo4j][:user] = "#{UID}"
 docker_compose[:services][:ruby][:user] = "#{UID}"
 
-docker_compose[:networks] = {DOCKER_NETWORK_NAME => {}}
-
 docker_compose[:services][:nginx][:ports] = ["127.0.0.1:#{DEV_NGINX_PORT}:80"]
 if DEVELOPMENT
     docker_compose[:services][:neo4j][:ports] = ["127.0.0.1:#{DEV_NEO4J_PORT}:7474",
@@ -134,7 +135,6 @@ else
 end
 
 docker_compose[:services].each_pair do |k, v|
-    v[:networks] = {DOCKER_NETWORK_NAME => {:aliases => [k]}}
     v[:environment] ||= []
     v[:environment] << "SERVICE=#{k}"
 end
