@@ -22,3 +22,5 @@ LETSENCRYPT_EMAIL = 'admin@beispielschule.de'
 # Produktionsumgebungen angepasst werden
 LOGS_PATH = './logs'
 DATA_PATH = './data'
+
+DOCKER_NETWORK_NAME = :languagetrainer

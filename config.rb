@@ -121,6 +121,8 @@ docker_compose[:services][:neo4j][:environment] = [
 docker_compose[:services][:neo4j][:user] = "#{UID}"
 docker_compose[:services][:ruby][:user] = "#{UID}"
 
+docker_compose[:networks] = {DOCKER_NETWORK_NAME => {}}
+
 docker_compose[:services][:nginx][:ports] = ["127.0.0.1:#{DEV_NGINX_PORT}:80"]
 if DEVELOPMENT
     docker_compose[:services][:neo4j][:ports] = ["127.0.0.1:#{DEV_NEO4J_PORT}:7474",
@@ -129,6 +131,12 @@ else
     docker_compose[:services].values.each do |x|
         x[:restart] = :always
     end
+end
+
+docker_compose[:services].each_pair do |k, v|
+    v[:networks] = {DOCKER_NETWORK_NAME => {:aliases => [k]}}
+    v[:environment] ||= []
+    v[:environment] << "SERVICE=#{k}"
 end
 
 File::open('docker-compose.yaml', 'w') do |f|

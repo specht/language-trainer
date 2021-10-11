@@ -303,14 +303,14 @@ class Main < Sinatra::Base
     
     configure do
         self.collect_data() unless defined?(SKIP_COLLECT_DATA) && SKIP_COLLECT_DATA
-        if ENV['DASHBOARD_SERVICE'] == 'ruby' && (File.basename($0) == 'thin' || File.basename($0) == 'pry.rb')
+        if ENV['SERVICE'] == 'ruby' && (File.basename($0) == 'thin' || File.basename($0) == 'pry.rb')
             setup = SetupDatabase.new()
             setup.setup(self)
         end
         if ['thin', 'rackup'].include?(File.basename($0))
             debug('Server is up and running!')
         end
-        if ENV['DASHBOARD_SERVICE'] == 'ruby' && File.basename($0) == 'pry.rb'
+        if ENV['SERVICE'] == 'ruby' && File.basename($0) == 'pry.rb'
             binding.pry
         end
     end
@@ -558,6 +558,5 @@ class Main < Sinatra::Base
     end
 
     get '*' do
-        status 404
     end
 end
