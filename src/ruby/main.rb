@@ -299,6 +299,18 @@ class Main < Sinatra::Base
     end
 
     def self.collect_data
+        @@user_info = {}
+        File.open('invitations.txt') do |f|
+            f.each_line do |line|
+                line.strip!
+                next if line.empty? || line[0] == '#'
+                email = line[0, line.index(' ')].strip
+                name = line[line.index(' ') + 1, line.size].strip
+                @@user_info[email] = {
+                    :name => name
+                }
+            end
+        end
     end    
     
     configure do
@@ -378,37 +390,29 @@ class Main < Sinatra::Base
         @session_user = nil
         if request.cookies.include?('sid')
             sid = request.cookies['sid']
-#             debug "SID: [#{sid}]"
+            debug "SID: [#{sid}]"
             if (sid.is_a? String) && (sid =~ /^[0-9A-Za-z,]+$/)
                 first_sid = sid.split(',').first
                 if first_sid =~ /^[0-9A-Za-z]+$/
                     results = neo4j_query(<<~END_OF_QUERY, :sid => first_sid, :today => Date.today.to_s).to_a
-                        MATCH (s:Session {sid: {sid}})-[:BELONGS_TO]->(u:User)
-                        SET u.last_access = {today}
-                        SET s.last_access = {today}
+                        MATCH (s:Session {sid: $sid})-[:BELONGS_TO]->(u:User)
+                        SET u.last_access = $today
+                        SET s.last_access = $today
                         RETURN s, u;
                     END_OF_QUERY
                     if results.size == 1
+                        debug '1'
                         begin
                             session = results.first['s'].props
                             session_expiry = session[:expires]
                             if DateTime.parse(session_expiry) > DateTime.now
                                 email = results.first['u'].props[:email]
                                 @session_user = @@user_info[email].dup
-                                if @session_user
-                                    @session_user[:font] = results.first['u'].props[:font]
-                                    @session_user[:color_scheme] = results.first['u'].props[:color_scheme]
-                                    @session_user[:ical_token] = results.first['u'].props[:ical_token]
-                                    @session_user[:otp_token] = results.first['u'].props[:otp_token]
-                                    @session_user[:homeschooling] = results.first['u'].props[:homeschooling]
-                                    @session_user[:group2] = results.first['u'].props[:group2] || 'A'
-                                    @session_user[:sus_may_contact_me] = results.first['u'].props[:sus_may_contact_me] || false
-                                end
                             end
                         rescue
                             # something went wrong, delete the session
                             results = neo4j_query(<<~END_OF_QUERY, :sid => first_sid).to_a
-                                MATCH (s:Session {sid: {sid}})
+                                MATCH (s:Session {sid: $sid})
                                 DETACH DELETE s;
                             END_OF_QUERY
                         end
@@ -458,11 +462,11 @@ class Main < Sinatra::Base
     post '/api/login' do
         data = parse_request_data(:required_keys => [:email])
         data[:email] = data[:email].strip.downcase
-        unless INVITATIONS.include?(data[:email])
+        unless @@user_info.include?(data[:email])
             sleep 3.0
             respond(:error => 'no_invitation_found')
         end
-        assert(INVITATIONS.include?(data[:email]))
+        assert(@@user_info.include?(data[:email]))
         srand(Digest::SHA2.hexdigest(LOGIN_CODE_SALT).to_i + (Time.now.to_f * 1000000).to_i)
         random_code = (0..5).map { |x| rand(10).to_s }.join('')
         random_code = '123456' if DEVELOPMENT
@@ -549,12 +553,16 @@ class Main < Sinatra::Base
             respond({:error => 'code_expired'})
         end
         assert(Time.at(login_code[:valid_to]) >= Time.now, 'code expired', true)
-        session_id = create_session(user[:email], login_code[:tainted] ? 2 : 365 * 24)
+        session_id = create_session(user[:email], 365 * 24)
         neo4j_query(<<~END_OF_QUERY, :tag => data[:tag])
             MATCH (l:LoginCode {tag: $tag})
             DETACH DELETE l;
         END_OF_QUERY
         respond(:ok => 'yeah', :sid => session_id)
+    end
+
+    post '/api/whoami' do
+        respond(:user => @session_user)
     end
 
     get '*' do

@@ -32,6 +32,3 @@ WEB_ROOT = DEVELOPMENT ? 'http://localhost:8025' : "https://#{WEBSITE_HOST}"
 
 LOGIN_CODE_SALT = 'insert_salt_here'
 
-# insert e-mail addresses here
-INVITATIONS = [
-]

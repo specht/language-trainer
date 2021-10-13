@@ -1,5 +1,6 @@
 env.rb
 src/ruby/credentials.rb
+src/ruby/invitations.txt
 data
 logs
 docker-compose.yaml
