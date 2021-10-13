@@ -469,8 +469,8 @@ class Main < Sinatra::Base
         tag = RandomTag::generate(8)
         valid_to = Time.now + 600
         result = neo4j_query(<<~END_OF_QUERY, :email => data[:email], :tag => tag, :code => random_code, :valid_to => valid_to.to_i)
-            MERGE (n:User {email: {email}})
-            CREATE (l:LoginCode {tag: {tag}, code: {code}, valid_to: {valid_to}})-[:BELONGS_TO]->(n)
+            MERGE (n:User {email: $email})
+            CREATE (l:LoginCode {tag: $tag, code: $code, valid_to: $valid_to})-[:BELONGS_TO]->(n)
             RETURN n, l;
         END_OF_QUERY
         email_recipient = data[:email]
@@ -513,8 +513,8 @@ class Main < Sinatra::Base
                 :expires => (DateTime.now() + expire_hours / 24.0).to_s}
         
         neo4j_query_expect_one(<<~END_OF_QUERY, :email => email, :data => data)
-            MATCH (u:User {email: {email}})
-            CREATE (s:Session {data})-[:BELONGS_TO]->(u)
+            MATCH (u:User {email: $email})
+            CREATE (s:Session $data)-[:BELONGS_TO]->(u)
             RETURN s; 
         END_OF_QUERY
         sid
@@ -525,7 +525,7 @@ class Main < Sinatra::Base
         data[:code] = data[:code].gsub(/[^0-9]/, '')
         begin
             result = neo4j_query_expect_one(<<~END_OF_QUERY, :tag => data[:tag])
-                MATCH (l:LoginCode {tag: {tag}})-[:BELONGS_TO]->(u:User)
+                MATCH (l:LoginCode {tag: $tag})-[:BELONGS_TO]->(u:User)
                 SET l.tries = COALESCE(l.tries, 0) + 1
                 RETURN l, u;
             END_OF_QUERY
@@ -537,7 +537,7 @@ class Main < Sinatra::Base
         login_code = result['l'].props
         if login_code[:tries] > MAX_LOGIN_TRIES
             neo4j_query(<<~END_OF_QUERY, :tag => data[:tag])
-                MATCH (l:LoginCode {tag: {tag}})
+                MATCH (l:LoginCode {tag: $tag})
                 DETACH DELETE l;
             END_OF_QUERY
             respond({:error => 'code_expired'})
@@ -551,7 +551,7 @@ class Main < Sinatra::Base
         assert(Time.at(login_code[:valid_to]) >= Time.now, 'code expired', true)
         session_id = create_session(user[:email], login_code[:tainted] ? 2 : 365 * 24)
         neo4j_query(<<~END_OF_QUERY, :tag => data[:tag])
-            MATCH (l:LoginCode {tag: {tag}})
+            MATCH (l:LoginCode {tag: $tag})
             DETACH DELETE l;
         END_OF_QUERY
         respond(:ok => 'yeah', :sid => session_id)
