@@ -451,7 +451,7 @@ class Main < Sinatra::Base
         @html_entities_coder.encode(s)
     end
 
-    post '/ping' do
+    post '/api/ping' do
         respond(:pong => 'yay')
     end
 
