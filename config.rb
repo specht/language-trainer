@@ -128,7 +128,11 @@ docker_compose[:services].values.each do |x|
     x[:network_mode] = 'default'
 end
 
-docker_compose[:services][:nginx][:ports] = ["127.0.0.1:#{DEV_NGINX_PORT}:80"]
+if DEVELOPMENT
+    docker_compose[:services][:nginx][:ports] = ["0.0.0.0:#{DEV_NGINX_PORT}:80"]
+else
+    docker_compose[:services][:nginx][:ports] = ["127.0.0.1:#{DEV_NGINX_PORT}:80"]
+end
 if DEVELOPMENT
     docker_compose[:services][:neo4j][:ports] = ["127.0.0.1:#{DEV_NEO4J_PORT}:7474",
                                                  "127.0.0.1:7687:7687"]

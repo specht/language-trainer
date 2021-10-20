@@ -275,8 +275,8 @@ class SetupDatabase
                 break unless ENV['DASHBOARD_SERVICE'] == 'ruby'
                 transaction do
                     debug "Setting up constraints and indexes..."
-#                     neo4j_query("CREATE CONSTRAINT ON (n:LoginCode) ASSERT n.tag IS UNIQUE")
-#                     neo4j_query("CREATE INDEX ON :Test(datum)")
+                    neo4j_query("CREATE CONSTRAINT ON (n:LoginCode) ASSERT n.tag IS UNIQUE")
+                    neo4j_query("CREATE INDEX ON :Event(timestamp)")
                 end
                 debug "Setup finished."
                 break
@@ -408,6 +408,7 @@ class Main < Sinatra::Base
                             if DateTime.parse(session_expiry) > DateTime.now
                                 email = results.first['u'].props[:email]
                                 @session_user = @@user_info[email].dup
+                                @session_user[:email] = email
                             end
                         rescue
                             # something went wrong, delete the session
@@ -477,33 +478,35 @@ class Main < Sinatra::Base
             CREATE (l:LoginCode {tag: $tag, code: $code, valid_to: $valid_to})-[:BELONGS_TO]->(n)
             RETURN n, l;
         END_OF_QUERY
-        email_recipient = data[:email]
-        begin
-            deliver_mail do
-                to email_recipient
-                bcc SMTP_FROM
-                from SMTP_FROM
-                
-                subject "Dein Anmeldecode lautet #{random_code}"
+        unless DEVELOPMENT
+            email_recipient = data[:email]
+            begin
+                deliver_mail do
+                    to email_recipient
+                    bcc SMTP_FROM
+                    from SMTP_FROM
+                    
+                    subject "Dein Anmeldecode lautet #{random_code}"
 
-                StringIO.open do |io|
-                    io.puts "<p>Hallo!</p>"
-                    io.puts "<p>Dein Anmeldecode lautet:</p>"
-                    io.puts "<p style='font-size: 200%;'>#{random_code}</p>"
-                    io.puts "<p>Der Code ist für zehn Minuten gültig. Nachdem du eingeloggt bist, bleibst du für ein ganzes Jahr eingeloggt.</p>"
-    #                 link = "#{WEB_ROOT}/c/#{tag}/#{random_code}"
-    #                 io.puts "<p><a href='#{link}'>#{link}</a></p>"
-                    io.puts "<p>Falls du diese E-Mail nicht angefordert hast, hat jemand versucht, sich mit deiner E-Mail-Adresse auf <a href='https://#{WEBSITE_HOST}/'>https://#{WEBSITE_HOST}/</a> anzumelden. In diesem Fall musst du nichts weiter tun (es sei denn, du befürchtest, dass jemand anderes Zugriff auf dein E-Mail-Konto hat – dann solltest du dein E-Mail-Passwort ändern).</p>"
-                    io.puts "<p>Viele Grüße,<br />#{WEBSITE_MAINTAINER_NAME}</p>"
-                    io.string
+                    StringIO.open do |io|
+                        io.puts "<p>Hallo!</p>"
+                        io.puts "<p>Dein Anmeldecode lautet:</p>"
+                        io.puts "<p style='font-size: 200%;'>#{random_code}</p>"
+                        io.puts "<p>Der Code ist für zehn Minuten gültig. Nachdem du eingeloggt bist, bleibst du für ein ganzes Jahr eingeloggt.</p>"
+        #                 link = "#{WEB_ROOT}/c/#{tag}/#{random_code}"
+        #                 io.puts "<p><a href='#{link}'>#{link}</a></p>"
+                        io.puts "<p>Falls du diese E-Mail nicht angefordert hast, hat jemand versucht, sich mit deiner E-Mail-Adresse auf <a href='https://#{WEBSITE_HOST}/'>https://#{WEBSITE_HOST}/</a> anzumelden. In diesem Fall musst du nichts weiter tun (es sei denn, du befürchtest, dass jemand anderes Zugriff auf dein E-Mail-Konto hat – dann solltest du dein E-Mail-Passwort ändern).</p>"
+                        io.puts "<p>Viele Grüße,<br />#{WEBSITE_MAINTAINER_NAME}</p>"
+                        io.string
+                    end
                 end
-            end
-        rescue StandardError => e
-            if DEVELOPMENT
-                debug "Cannot send e-mail in DEVELOPMENT mode, continuing anyway:"
-                STDERR.puts e
-            else
-                raise e
+            rescue StandardError => e
+                if DEVELOPMENT
+                    debug "Cannot send e-mail in DEVELOPMENT mode, continuing anyway:"
+                    STDERR.puts e
+                else
+                    raise e
+                end
             end
         end
         response_hash = {:tag => tag}
@@ -561,8 +564,59 @@ class Main < Sinatra::Base
         respond(:ok => 'yeah', :sid => session_id)
     end
 
+    def require_user!
+        assert(@session_user != nil)
+    end
+
     post '/api/whoami' do
+        require_user!
         respond(:user => @session_user)
+    end
+
+    post '/api/get_latest_timestamp' do
+        require_user!
+        results = neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email]}).to_a
+            MATCH (e:Event)-[:BELONGS_TO]->(u:User {email: $email})
+            RETURN e.timestamp 
+            ORDER BY e.timestamp DESC
+            LIMIT 1;
+        END_OF_QUERY
+        timestamp = 0
+        unless results.empty?
+            timestamp = results[0]['e.timestamp']
+        end
+        respond(:timestamp => timestamp)
+    end
+
+    post '/api/store_events' do
+        require_user!
+        data = parse_request_data(:required_keys => [:timestamp, :words], 
+            :max_body_length => 0x10000, :types => {:timestamp => Integer, :words => Array})
+        timestamp = data[:timestamp]
+        transaction do
+            STDERR.puts @session_user.to_yaml
+            data[:words].each do |word|
+                neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :sha1 => word, :timestamp => timestamp})
+                    MATCH (u:User {email: $email})
+                    MERGE (e:Event {sha1: $sha1})-[:BELONGS_TO]->(u)
+                    SET e.timestamp = $timestamp;
+                END_OF_QUERY
+            end
+        end
+        respond(:success => 'yay')
+    end
+
+    post '/api/fetch_events' do
+        require_user!
+        data = parse_request_data(:required_keys => [:timestamp], 
+            :types => {:timestamp => Integer})
+
+        rows = neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :timestamp => data[:timestamp]}).map { |x| x['e'].props }
+            MATCH (e:Event)-[:BELONGS_TO]->(u:User {email: $email})
+            WHERE e.timestamp >= $timestamp
+            RETURN e;
+        END_OF_QUERY
+        respond(:events => rows)
     end
 
     get '*' do
