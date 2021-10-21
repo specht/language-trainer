@@ -586,7 +586,7 @@ class Main < Sinatra::Base
         END_OF_QUERY
         timestamp = 0
         unless results.empty?
-            timestamp = results[0]['e.timestamp']
+            timestamp = results[0]['r.timestamp']
         end
         respond(:timestamp => timestamp)
     end
