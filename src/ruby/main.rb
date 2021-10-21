@@ -597,7 +597,7 @@ class Main < Sinatra::Base
         require_user!
         data = parse_request_data(:required_keys => [:coins], 
             :types => {:coins => Integer})
-        coins = neo4j_query_expect_one(<<~END_OF_QUERY, {:email => @session_user[:email]}).map { |x| x['coins'] }
+        coins = neo4j_query_expect_one(<<~END_OF_QUERY, {:email => @session_user[:email]})['coins']
             MATCH (u: User{ email: $email})
             RETURN COALESCE(u.coins, 0) AS coins;
         END_OF_QUERY
