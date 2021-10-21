@@ -588,7 +588,27 @@ class Main < Sinatra::Base
         unless results.empty?
             timestamp = results[0]['r.timestamp']
         end
-        respond(:timestamp => timestamp)
+        result = {}
+        result[:timestamp] = timestamp
+        respond(result)
+    end
+
+    post '/api/update_coins' do
+        require_user!
+        data = parse_request_data(:required_keys => [:coins], 
+            :types => {:coins => Integer})
+        coins = neo4j_query_expect_one(<<~END_OF_QUERY, {:email => @session_user[:email]}).map { |x| x['coins'] }
+            MATCH (u: User{ email: $email})
+            RETURN COALESCE(u.coins, 0) AS coins;
+        END_OF_QUERY
+        if data[:coins] > coins
+            neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :coins => data[:coins]})
+                MATCH (u: User{ email: $email})
+                SET u.coins = $coins;
+            END_OF_QUERY
+            coins = data[:coins]
+        end
+        respond(:coins => coins)
     end
 
     post '/api/store_events' do
