@@ -276,7 +276,10 @@ class SetupDatabase
                 transaction do
                     debug "Setting up constraints and indexes..."
                     neo4j_query("CREATE CONSTRAINT ON (n:LoginCode) ASSERT n.tag IS UNIQUE")
-                    neo4j_query("CREATE INDEX ON :Event(timestamp)")
+                    neo4j_query("CREATE INDEX ON :Entry(sha1)")
+                    neo4j_query("CREATE INDEX ON :User(email)")
+                    neo4j_query("CALL db.index.fulltext.createRelationshipIndex('belongs_to_timestamp_index', ['BELONGS_TO'], ['timestamp']);
+                    ")
                 end
                 debug "Setup finished."
                 break
@@ -576,9 +579,9 @@ class Main < Sinatra::Base
     post '/api/get_latest_timestamp' do
         require_user!
         results = neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email]}).to_a
-            MATCH (e:Event)-[:BELONGS_TO]->(u:User {email: $email})
-            RETURN e.timestamp 
-            ORDER BY e.timestamp DESC
+            MATCH (e:Entry)-[r:BELONGS_TO]->(u:User {email: $email})
+            RETURN r.timestamp 
+            ORDER BY r.timestamp DESC
             LIMIT 1;
         END_OF_QUERY
         timestamp = 0
@@ -598,8 +601,9 @@ class Main < Sinatra::Base
             data[:words].each do |word|
                 neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :sha1 => word, :timestamp => timestamp})
                     MATCH (u:User {email: $email})
-                    MERGE (e:Event {sha1: $sha1})-[:BELONGS_TO]->(u)
-                    SET e.timestamp = $timestamp;
+                    MERGE (e:Entry {sha1: $sha1})
+                    MERGE (e)-[r:BELONGS_TO]->(u)
+                    SET r.timestamp = $timestamp;
                 END_OF_QUERY
             end
         end
@@ -611,10 +615,10 @@ class Main < Sinatra::Base
         data = parse_request_data(:required_keys => [:timestamp], 
             :types => {:timestamp => Integer})
 
-        rows = neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :timestamp => data[:timestamp]}).map { |x| x['e'].props }
-            MATCH (e:Event)-[:BELONGS_TO]->(u:User {email: $email})
-            WHERE e.timestamp >= $timestamp
-            RETURN e;
+        rows = neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :timestamp => data[:timestamp]}).map { |x| {:sha1 => x['sha1'], :timestamp => x['timestamp']} }
+            MATCH (e:Entry)-[r:BELONGS_TO]->(u:User {email: $email})
+            WHERE r.timestamp >= $timestamp
+            RETURN e.sha1 AS sha1, r.timestamp AS timestamp;
         END_OF_QUERY
         respond(:events => rows)
     end
