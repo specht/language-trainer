@@ -396,7 +396,7 @@ class Main < Sinatra::Base
         if request.cookies.include?('sid')
             sid = request.cookies['sid']
         end
-        STDERR.puts request.headers.to_yaml
+        # STDERR.puts request.headers.to_yaml
         STDERR.puts request.env.to_yaml
         if request.env['HTTP_X_SESSION_ID']
             sid = request.env['HTTP_X_SESSION_ID']
