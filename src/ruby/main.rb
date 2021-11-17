@@ -474,7 +474,7 @@ class Main < Sinatra::Base
 
     options '/api/*' do
         response.headers['Access-Control-Allow-Origin'] = "https://agr.gymnasiumsteglitz.de"
-        response.headers['Access-Control-Allow-Headers'] = "Content-Type, Access-Control-Allow-Origin"
+        response.headers['Access-Control-Allow-Headers'] = "Content-Type, Access-Control-Allow-Origin,X-SESSION-ID"
         response.headers['Access-Control-Request-Headers'] = 'X-SESSION-ID'
     end
     
