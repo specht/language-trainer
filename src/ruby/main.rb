@@ -387,12 +387,21 @@ class Main < Sinatra::Base
     end
     
     before '*' do
+        response.headers['Access-Control-Allow-Origin'] = "https://agr.gymnasiumsteglitz.de"
         @latest_request_body = nil
         @latest_request_body_parsed = nil
         # before any API request, determine currently logged in user via the provided session ID
         @session_user = nil
+        sid = nil
         if request.cookies.include?('sid')
             sid = request.cookies['sid']
+        end
+        STDERR.puts request.headers.to_yaml
+        STDERR.puts request.env.to_yaml
+        if request.env['HTTP_X_SESSION_ID']
+            sid = request.env['HTTP_X_SESSION_ID']
+        end
+        if sid
             debug "SID: [#{sid}]"
             if (sid.is_a? String) && (sid =~ /^[0-9A-Za-z,]+$/)
                 first_sid = sid.split(',').first
@@ -404,7 +413,6 @@ class Main < Sinatra::Base
                         RETURN s, u;
                     END_OF_QUERY
                     if results.size == 1
-                        debug '1'
                         begin
                             session = results.first['s'].props
                             session_expiry = session[:expires]
@@ -427,7 +435,6 @@ class Main < Sinatra::Base
     end
     
     after '/api/*' do
-        response.headers['Access-Control-Allow-Origin'] = "https://agr.gymnasiumsteglitz.de"
         if @respond_content
             response.body = @respond_content
             response.headers['Content-Type'] = @respond_mimetype
@@ -467,6 +474,7 @@ class Main < Sinatra::Base
     options '/api/*' do
         response.headers['Access-Control-Allow-Origin'] = "https://agr.gymnasiumsteglitz.de"
         response.headers['Access-Control-Allow-Headers'] = "Content-Type, Access-Control-Allow-Origin"
+        response.headers['Access-Control-Request-Headers'] = 'X-SESSION-ID'
     end
     
     post '/api/login' do
