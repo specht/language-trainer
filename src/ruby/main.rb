@@ -427,6 +427,7 @@ class Main < Sinatra::Base
     end
     
     after '/api/*' do
+        response.headers['Access-Control-Allow-Origin'] = "https://agr.gymnasiumsteglitz.de"
         if @respond_content
             response.body = @respond_content
             response.headers['Content-Type'] = @respond_mimetype
@@ -463,13 +464,12 @@ class Main < Sinatra::Base
         respond(:pong => 'yay')
     end
 
-    options '/api/login' do
+    options '/api/*' do
         response.headers['Access-Control-Allow-Origin'] = "https://agr.gymnasiumsteglitz.de"
         response.headers['Access-Control-Allow-Headers'] = "Content-Type, Access-Control-Allow-Origin"
     end
     
     post '/api/login' do
-        response.headers['Access-Control-Allow-Origin'] = "https://agr.gymnasiumsteglitz.de"
         data = parse_request_data(:required_keys => [:email])
         data[:email] = data[:email].strip.downcase
         unless @@user_info.include?(data[:email])
