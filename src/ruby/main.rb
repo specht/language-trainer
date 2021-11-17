@@ -388,6 +388,7 @@ class Main < Sinatra::Base
     
     before '*' do
         response.headers['Access-Control-Allow-Origin'] = "https://agr.gymnasiumsteglitz.de"
+        response.headers['Access-Control-Request-Headers'] = 'X-SESSION-ID'
         @latest_request_body = nil
         @latest_request_body_parsed = nil
         # before any API request, determine currently logged in user via the provided session ID
