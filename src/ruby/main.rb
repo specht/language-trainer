@@ -636,6 +636,15 @@ class Main < Sinatra::Base
         respond(:ok => 'yeah')
     end
 
+    def get_active_unit_timestamp()
+        require_user!
+        timestamp = neo4j_query_expect_one(<<~END_OF_QUERY, {:email => @session_user[:email]})['timestamp']
+            MATCH (u: User { email: $email})
+            RETURN COALESCE(u.unit_timestamp, 0) AS timestamp;
+        END_OF_QUERY
+        timestamp
+    end
+
     def get_active_unit()
         require_user!
         unit = neo4j_query_expect_one(<<~END_OF_QUERY, {:email => @session_user[:email]})['unit']
@@ -645,24 +654,27 @@ class Main < Sinatra::Base
         unit
     end
 
-    def set_active_unit(unit)
+    def set_active_unit(unit, timestamp)
         require_user!
-        neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :unit => unit})
-            MATCH (u: User { email: $email})
-            SET u.unit = $unit;
-        END_OF_QUERY
+        if timestamp > get_active_unit_timestamp()
+            neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :unit => unit, :timestamp => timestamp})
+                MATCH (u: User { email: $email})
+                SET u.unit = $unit
+                SET u.unit_timestamp = $timestamp;
+            END_OF_QUERY
+        end
     end
 
     post '/api/get_active_unit' do
-        respond(:unit => get_active_unit())
+        respond(:active_unit => get_active_unit())
     end
 
-    post '/api/update_active_unit' do
+    post '/api/set_active_unit' do
         require_user!
-        data = parse_request_data(:required_keys => [:unit], 
-            :types => {:unit => Integer})
-        set_active_unit(data[:unit])
-        respond(:ok => 'yeah')
+        data = parse_request_data(:required_keys => [:unit, :timestamp], 
+            :types => {:unit => Integer, :timestamp => Integer})
+        set_active_unit(data[:unit], data[:timestamp])
+        respond(:active_unit => get_active_unit())
     end
 
     post '/api/store_events' do
@@ -708,15 +720,12 @@ class Main < Sinatra::Base
 
     post '/api/update_profile' do
         require_user!
-        data = parse_request_data(:optional_keys => [:coins, :active_unit], 
-            :types => {:coins => Integer, :active_unit => Integer})
+        data = parse_request_data(:optional_keys => [:coins], 
+            :types => {:coins => Integer})
         if data[:coins]
             if data[:coins] > get_coins()
                 set_coins(data[:coins])
             end
-        end
-        if data[:active_unit]
-            set_active_unit(data[:active_unit])
         end
         respond(:coins => get_coins(), :active_unit => get_active_unit())
     end
