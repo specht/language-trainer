@@ -307,10 +307,13 @@ class Main < Sinatra::Base
             f.each_line do |line|
                 line.strip!
                 next if line.empty? || line[0] == '#'
-                email = line[0, line.index(' ')].strip
-                name = line[line.index(' ') + 1, line.size].strip
+                parts = line.split(/\s+/)
+                email = parts[0].strip
+                nc_login = parts[1].strip
+                name = parts[2, parts.size - 2].join(' ').strip
                 @@user_info[email] = {
-                    :name => name
+                    :name => name,
+                    :nc_login => nc_login
                 }
             end
         end
@@ -579,16 +582,11 @@ class Main < Sinatra::Base
             MATCH (l:LoginCode {tag: $tag})
             DETACH DELETE l;
         END_OF_QUERY
-        respond(:ok => 'yeah', :sid => session_id)
+        respond(:ok => 'yeah', :sid => session_id, :user_name => @@user_info[user[:email]][:name], :nc_login => @@user_info[user[:email]][:nc_login])
     end
 
     def require_user!
         assert(@session_user != nil)
-    end
-
-    post '/api/whoami' do
-        require_user!
-        respond(:user => @session_user)
     end
 
     post '/api/get_latest_timestamp' do
