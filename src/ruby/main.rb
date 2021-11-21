@@ -434,9 +434,6 @@ class Main < Sinatra::Base
                     end
                 end
             end
-            if @session_user.nil?
-                response.headers['X-Invalid-Session-Please-Delete'] = 1
-            end
         end
     end
     
@@ -592,22 +589,23 @@ class Main < Sinatra::Base
     end
 
     post '/api/get_latest_timestamp' do
-        unless @session_user.nil?
-            require_user!
-            results = neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email]}).to_a
-                MATCH (e:Entry)-[r:BELONGS_TO]->(u:User {email: $email})
-                RETURN r.timestamp 
-                ORDER BY r.timestamp DESC
-                LIMIT 1;
-            END_OF_QUERY
-            timestamp = 0
-            unless results.empty?
-                timestamp = results[0]['r.timestamp'] || 0
-            end
-            result = {}
-            result[:timestamp] = timestamp
-            respond(result)
+        if @session_user.nil?
+            respond(:invalid_session_please_delete => true)
         end
+        require_user!
+        results = neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email]}).to_a
+            MATCH (e:Entry)-[r:BELONGS_TO]->(u:User {email: $email})
+            RETURN r.timestamp 
+            ORDER BY r.timestamp DESC
+            LIMIT 1;
+        END_OF_QUERY
+        timestamp = 0
+        unless results.empty?
+            timestamp = results[0]['r.timestamp'] || 0
+        end
+        result = {}
+        result[:timestamp] = timestamp
+        respond(result)
     end
 
     def get_coins()
