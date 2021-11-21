@@ -624,6 +624,35 @@ class Main < Sinatra::Base
         respond(:coins => coins)
     end
 
+    post '/api/get_coins' do
+        require_user!
+        coins = neo4j_query_expect_one(<<~END_OF_QUERY, {:email => @session_user[:email]})['coins']
+            MATCH (u: User{ email: $email})
+            RETURN COALESCE(u.coins, 0) AS coins;
+        END_OF_QUERY
+        respond(:coins => coins)
+    end
+
+    post '/api/update_units' do
+        require_user!
+        data = parse_request_data(:required_keys => [:units], 
+            :types => {:coins => String})
+        neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :units => data[:units]})
+            MATCH (u: User { email: $email})
+            SET u.units = $units;
+        END_OF_QUERY
+        respond(:ok => 'yeah')
+    end
+
+    post '/api/get_units' do
+        require_user!
+        coins = neo4j_query_expect_one(<<~END_OF_QUERY, {:email => @session_user[:email]})['units']
+            MATCH (u: User { email: $email})
+            RETURN COALESCE(u.units, '') AS units;
+        END_OF_QUERY
+        respond(:units => units)
+    end
+
     post '/api/store_events' do
         require_user!
         data = parse_request_data(:required_keys => [:timestamp, :words], 
