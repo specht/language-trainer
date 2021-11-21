@@ -696,7 +696,7 @@ class Main < Sinatra::Base
     post '/api/whoami' do
         require_user!
         result = {
-            :user_name => @session_user[:user_name],
+            :user_name => @session_user[:name],
             :nc_login => @session_user[:nc_login],
             :coins => get_coins(),
             :active_unit => get_active_unit()
