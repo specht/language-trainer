@@ -718,7 +718,7 @@ class Main < Sinatra::Base
         if data[:active_unit]
             set_active_unit(data[:active_unit])
         end
-        respond(:ok => 'yeah')
+        respond(:coins => get_coins(), :active_unit => get_active_unit())
     end
 
     get '*' do
