@@ -434,6 +434,9 @@ class Main < Sinatra::Base
                     end
                 end
             end
+            if @session_user.nil?
+                response.headers['X-Invalid-Session-Please-Delete'] = 1
+            end
         end
     end
     
