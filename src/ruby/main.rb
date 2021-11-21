@@ -582,7 +582,7 @@ class Main < Sinatra::Base
             MATCH (l:LoginCode {tag: $tag})
             DETACH DELETE l;
         END_OF_QUERY
-        respond(:ok => 'yeah', :sid => session_id, :user_name => @@user_info[user[:email]][:name], :nc_login => @@user_info[user[:email]][:nc_login])
+        respond(:ok => 'yeah', :sid => session_id)
     end
 
     def require_user!
@@ -624,33 +624,41 @@ class Main < Sinatra::Base
         respond(:coins => coins)
     end
 
-    post '/api/get_coins' do
+    def get_coins()
         require_user!
         coins = neo4j_query_expect_one(<<~END_OF_QUERY, {:email => @session_user[:email]})['coins']
             MATCH (u: User{ email: $email})
             RETURN COALESCE(u.coins, 0) AS coins;
         END_OF_QUERY
-        respond(:coins => coins)
+        coins
+    end
+                       
+    post '/api/get_coins' do
+        respond(:coins => get_coins())
     end
 
-    post '/api/update_units' do
+    post '/api/update_active_unit' do
         require_user!
-        data = parse_request_data(:required_keys => [:units], 
-            :types => {:coins => String})
-        neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :units => data[:units]})
+        data = parse_request_data(:required_keys => [:unit], 
+            :types => {:unit => Integer})
+        neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :unit => data[:unit]})
             MATCH (u: User { email: $email})
-            SET u.units = $units;
+            SET u.unit = $unit;
         END_OF_QUERY
         respond(:ok => 'yeah')
     end
 
-    post '/api/get_units' do
+    def get_active_unit()
         require_user!
-        coins = neo4j_query_expect_one(<<~END_OF_QUERY, {:email => @session_user[:email]})['units']
+        unit = neo4j_query_expect_one(<<~END_OF_QUERY, {:email => @session_user[:email]})['unit']
             MATCH (u: User { email: $email})
-            RETURN COALESCE(u.units, '') AS units;
+            RETURN COALESCE(u.unit, 1) AS unit;
         END_OF_QUERY
-        respond(:units => units)
+        unit
+    end
+
+    post '/api/get_active_unit' do
+        respond(:unit => get_active_unit())
     end
 
     post '/api/store_events' do
@@ -683,6 +691,17 @@ class Main < Sinatra::Base
             RETURN e.sha1 AS sha1, r.timestamp AS timestamp;
         END_OF_QUERY
         respond(:events => rows)
+    end
+
+    post '/api/whoami' do
+        require_user!
+        result = {
+            :user_name => @session_user[:user_name],
+            :nc_login => @session_user[:nc_login],
+            :coins => get_coins(),
+            :active_unit => get_active_unit()
+        }
+        respond(:profile => result)
     end
 
     get '*' do
