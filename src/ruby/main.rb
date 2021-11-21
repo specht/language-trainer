@@ -701,7 +701,7 @@ class Main < Sinatra::Base
             :coins => get_coins(),
             :active_unit => get_active_unit()
         }
-        respond(:profile => result)
+        respond(result)
     end
 
     get '*' do
