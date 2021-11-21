@@ -606,24 +606,6 @@ class Main < Sinatra::Base
         respond(result)
     end
 
-    post '/api/update_coins' do
-        require_user!
-        data = parse_request_data(:required_keys => [:coins], 
-            :types => {:coins => Integer})
-        coins = neo4j_query_expect_one(<<~END_OF_QUERY, {:email => @session_user[:email]})['coins']
-            MATCH (u: User{ email: $email})
-            RETURN COALESCE(u.coins, 0) AS coins;
-        END_OF_QUERY
-        if data[:coins] > coins
-            neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :coins => data[:coins]})
-                MATCH (u: User{ email: $email})
-                SET u.coins = $coins;
-            END_OF_QUERY
-            coins = data[:coins]
-        end
-        respond(:coins => coins)
-    end
-
     def get_coins()
         require_user!
         coins = neo4j_query_expect_one(<<~END_OF_QUERY, {:email => @session_user[:email]})['coins']
@@ -633,18 +615,25 @@ class Main < Sinatra::Base
         coins
     end
                        
+    def set_coins(coins)
+        require_user!
+        neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :coins => coins})
+            MATCH (u: User{ email: $email})
+            SET u.coins = $coins;
+        END_OF_QUERY
+    end
+                       
     post '/api/get_coins' do
         respond(:coins => get_coins())
     end
 
-    post '/api/update_active_unit' do
+    post '/api/update_coins' do
         require_user!
-        data = parse_request_data(:required_keys => [:unit], 
-            :types => {:unit => Integer})
-        neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :unit => data[:unit]})
-            MATCH (u: User { email: $email})
-            SET u.unit = $unit;
-        END_OF_QUERY
+        data = parse_request_data(:required_keys => [:coins], 
+            :types => {:coins => Integer})
+        if data[:coins] > get_coins()
+            set_coins(data[:coins])
+        end
         respond(:ok => 'yeah')
     end
 
@@ -657,18 +646,32 @@ class Main < Sinatra::Base
         unit
     end
 
+    def set_active_unit(unit)
+        require_user!
+        neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :unit => unit})
+            MATCH (u: User { email: $email})
+            SET u.unit = $unit;
+        END_OF_QUERY
+    end
+
     post '/api/get_active_unit' do
         respond(:unit => get_active_unit())
     end
 
+    post '/api/update_active_unit' do
+        require_user!
+        data = parse_request_data(:required_keys => [:unit], 
+            :types => {:unit => Integer})
+        set_active_unit(data[:unit])
+        respond(:ok => 'yeah')
+    end
+
     post '/api/store_events' do
         require_user!
-        data = parse_request_data(:required_keys => [:timestamp, :words], 
-            :max_body_length => 0x10000, :types => {:timestamp => Integer, :words => Array})
-        timestamp = data[:timestamp]
+        data = parse_request_data(:required_keys => [:words], 
+            :max_body_length => 0x100000, :types => {:timestamp => Hash})
         transaction do
-            STDERR.puts @session_user.to_yaml
-            data[:words].each do |word|
+            data[:words].each_pair do |word, timestamp|
                 neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :sha1 => word, :timestamp => timestamp})
                     MATCH (u:User {email: $email})
                     MERGE (e:Entry {sha1: $sha1})
@@ -702,6 +705,21 @@ class Main < Sinatra::Base
             :active_unit => get_active_unit()
         }
         respond(result)
+    end
+
+    post '/api/update_profile' do
+        require_user!
+        data = parse_request_data(:optional => [:coins, :active_unit], 
+            :types => {:coins => Integer, :active_unit => Integer})
+        if data[:coins]
+            if data[:coins] > get_coins()
+                set_coins(data[:coins])
+            end
+        end
+        if data[:active_unit]
+            set_active_unit(data[:active_unit])
+        end
+        respond(:ok => 'yeah')
     end
 
     get '*' do
