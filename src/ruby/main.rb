@@ -720,12 +720,15 @@ class Main < Sinatra::Base
 
     post '/api/update_profile' do
         require_user!
-        data = parse_request_data(:optional_keys => [:coins], 
-            :types => {:coins => Integer})
+        data = parse_request_data(:optional_keys => [:coins, :active_unit, :active_unit_timestamp], 
+            :types => {:coins => Integer, :active_unit => Integer, :active_unit_timestamp => Integer})
         if data[:coins]
             if data[:coins] > get_coins()
                 set_coins(data[:coins])
             end
+        end
+        if data[:active_unit] && data[:active_unit_timestamp]
+            set_active_unit(data[:active_unit], data[:active_unit_timestamp])
         end
         respond(:coins => get_coins(), :active_unit => get_active_unit())
     end
