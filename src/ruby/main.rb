@@ -598,7 +598,7 @@ class Main < Sinatra::Base
         END_OF_QUERY
         timestamp = 0
         unless results.empty?
-            timestamp = results[0]['r.timestamp']
+            timestamp = results[0]['r.timestamp'] || 0
         end
         result = {}
         result[:timestamp] = timestamp
@@ -687,7 +687,8 @@ class Main < Sinatra::Base
                     MATCH (u:User {email: $email})
                     MERGE (e:Entry {sha1: $sha1})
                     MERGE (e)-[r:BELONGS_TO]->(u)
-                    SET r.timestamp = CASE WHEN $timestamp > r.timestamp THEN $timestamp ELSE r.timestamp END;
+                    WHERE $timestamp > r.timestamp
+                    SET r.timestamp = $timestamp;
                 END_OF_QUERY
             end
         end
