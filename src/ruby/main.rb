@@ -710,6 +710,7 @@ class Main < Sinatra::Base
         require_user!
         data = parse_request_data(:optional => [:coins, :active_unit], 
             :types => {:coins => Integer, :active_unit => Integer})
+        STDERR.puts "/api/profile: #{data.to_json}"
         if data[:coins]
             if data[:coins] > get_coins()
                 set_coins(data[:coins])
