@@ -669,7 +669,7 @@ class Main < Sinatra::Base
     post '/api/store_events' do
         require_user!
         data = parse_request_data(:required_keys => [:words], 
-            :max_body_length => 0x100000, :types => {:timestamp => Hash})
+            :max_body_length => 0x100000, :types => {:words => Hash})
         transaction do
             data[:words].each_pair do |word, timestamp|
                 neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :sha1 => word, :timestamp => timestamp})
