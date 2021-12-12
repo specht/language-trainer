@@ -762,8 +762,7 @@ class Main < Sinatra::Base
         result = {}
         purchase_sum = 0
         rows.each do |item|
-            result[item[:item][:category]] ||= {}
-            result[item[:item][:category]][item[:item][:item]] = true
+            result["#{item[:item][:category]}/#{item[:item][:item]}"] = price
             purchase_sum += item[:price]
         end
         respond(:items => result, :purchase_sum => purchase_sum)
