@@ -718,7 +718,7 @@ class Main < Sinatra::Base
         respond(:events => rows)
     end
 
-    def whoamif
+    def whoami
         require_user!
         result = {
             :user_name => @session_user[:name],
