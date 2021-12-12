@@ -1,0 +1,39 @@
+avatars:
+  athene: 1500
+  zeus: 1000
+  poseidon: 750
+  hera: 500
+  apollo: 450
+  aphrodite: 400
+  artemis: 350
+  hephaestus: 300
+  demeter: 250
+  dionysus: 200
+  ares: 150
+  hermes: 100
+color_schemes:
+  default: 0
+  blueish: 100
+  80ies: 100
+  pink: 100
+  red: 100
+  pink_yellow: 100
+  purple: 100
+  green: 100
+  teal: 100
+  deep_purple: 100
+  deep_blue_purple: 100
+  dark_brown: 100
+  pale: 100
+fonts:
+  alegreya: 0
+  indieFlower: 200
+  patrickHand: 200
+  mali: 200
+  neucha: 200
+  specialElite: 200
+  alata: 200
+  amaranth: 200
+  solway: 200
+  quicksand: 200
+  bellota: 200

@@ -317,6 +317,7 @@ class Main < Sinatra::Base
                 }
             end
         end
+        @@shop = YAML.load(File.read('shop.yaml'))
     end    
     
     configure do
@@ -723,6 +724,7 @@ class Main < Sinatra::Base
             :user_name => @session_user[:name],
             :nc_login => @session_user[:nc_login],
             :coins => get_coins(),
+            :shop_items => get_shop_items(),
             :active_unit => get_active_unit()
         }
         respond(result)
@@ -741,6 +743,44 @@ class Main < Sinatra::Base
             set_active_unit(data[:active_unit], data[:active_unit_timestamp])
         end
         respond(:coins => get_coins(), :active_unit => get_active_unit())
+    end
+
+    post '/api/shop' do
+        require_user!
+        respond(:shop => @@shop)
+    end
+
+    def get_shop_items()
+        rows = neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email]}).map { |x| x['s'].props }
+            MATCH (u: User{ email: $email})-[:PURCHASED]->(s:ShopItem)
+            RETURN s;
+        END_OF_QUERY
+        result = {}
+        rows.each do |item|
+            result[item[:category]] ||= {}
+            result[item[:category]][item[:item]] = true
+        end
+        respond(:items => result)
+    end
+
+    post '/api/purchase' do
+        require_user!
+        data = parse_request_data(:required_keys => [:category, :item])
+        category = data[:category]
+        item = data[:item]
+        assert(@@shop.include?(category))
+        assert(@@shop[category].include?(item))
+        price = @@shop[category][item]
+        current_coins = get_coins()
+        if price > current_coins
+            respond(:error => 'not_enough_coins')
+        end
+        neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :category => category, :item => item, :price => price})
+            MATCH (u: User{ email: $email})
+            MERGE (s:ShopItem {category: $category, item: $item})
+            CREATE (u)-[:PURCHASED {price: $price}]->(s);
+        END_OF_QUERY
+        respond(:new_coins => get_coins(), :new_shop_items => get_shop_items())
     end
 
     get '*' do
