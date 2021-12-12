@@ -718,7 +718,7 @@ class Main < Sinatra::Base
         respond(:events => rows)
     end
 
-    post '/api/whoami' do
+    def whoamif
         require_user!
         result = {
             :user_name => @session_user[:name],
@@ -727,7 +727,11 @@ class Main < Sinatra::Base
             :shop_items => get_shop_items(),
             :active_unit => get_active_unit()
         }
-        respond(result)
+        result
+    end
+
+    post '/api/whoami' do
+        respond(whoami())
     end
 
     post '/api/update_profile' do
@@ -742,7 +746,7 @@ class Main < Sinatra::Base
         if data[:active_unit] && data[:active_unit_timestamp]
             set_active_unit(data[:active_unit], data[:active_unit_timestamp])
         end
-        respond(:coins => get_coins(), :active_unit => get_active_unit())
+        respond(whoami())
     end
 
     post '/api/shop' do
@@ -751,16 +755,18 @@ class Main < Sinatra::Base
     end
 
     def get_shop_items()
-        rows = neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email]}).map { |x| x['s'].props }
-            MATCH (u: User{ email: $email})-[:PURCHASED]->(s:ShopItem)
-            RETURN s;
+        rows = neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email]}).map { |x| {:item => x['s'].props, :price => x['price'] }
+            MATCH (u: User{ email: $email})-[r:PURCHASED]->(s:ShopItem)
+            RETURN s, r.price AS price;
         END_OF_QUERY
         result = {}
+        purchase_sum = 0
         rows.each do |item|
-            result[item[:category]] ||= {}
-            result[item[:category]][item[:item]] = true
+            result[item[:item][:category]] ||= {}
+            result[item[:item][:category]][item[:item][:item]] = true
+            purchase_sum += item[:price]
         end
-        respond(:items => result)
+        respond(:items => result, :purchase_sum => purchase_sum)
     end
 
     post '/api/purchase' do
