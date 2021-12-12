@@ -755,7 +755,7 @@ class Main < Sinatra::Base
     end
 
     def get_shop_items()
-        rows = neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email]}).map { |x| {:item => x['s'].props, :price => x['price'] }
+        rows = neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email]}).map { |x| {:item => x['s'].props, :price => x['price']} }
             MATCH (u: User{ email: $email})-[r:PURCHASED]->(s:ShopItem)
             RETURN s, r.price AS price;
         END_OF_QUERY
