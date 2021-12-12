@@ -571,6 +571,13 @@ class Main < Sinatra::Base
             assert_with_delay(false, "Code expired", true)
         end
         assert(login_code[:tries] <= MAX_LOGIN_TRIES)
+        if data[:code].size != 6
+            respond({:error => 'wrong_code'})
+            throw 'fishy code length'
+        end
+        if (data[:code] != login_code[:code])
+            respond({:error => 'wrong_code'})
+        end
         assert_with_delay(data[:code] == login_code[:code], "Wrong e-mail code entered for #{user[:email]}: #{data[:code]}", true)
         if Time.at(login_code[:valid_to]) < Time.now
             respond({:error => 'code_expired'})
