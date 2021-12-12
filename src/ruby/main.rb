@@ -786,7 +786,8 @@ class Main < Sinatra::Base
             MERGE (s:ShopItem {category: $category, item: $item})
             CREATE (u)-[:PURCHASED {price: $price}]->(s);
         END_OF_QUERY
-        respond(:new_coins => get_coins(), :new_shop_items => get_shop_items())
+        shop_items = get_shop_items()
+        respond(:new_shop_items => shop_items)
     end
 
     get '*' do
