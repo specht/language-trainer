@@ -573,7 +573,7 @@ class Main < Sinatra::Base
         assert(login_code[:tries] <= MAX_LOGIN_TRIES)
         if data[:code].size != 6
             respond({:error => 'wrong_code'})
-            throw 'fishy code length'
+            assert_with_delay(false, "Fishy code length entered for #{user[:email]}", true)
         end
         if (data[:code] != login_code[:code])
             respond({:error => 'wrong_code'})
