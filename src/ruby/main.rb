@@ -676,6 +676,93 @@ class Main < Sinatra::Base
         end
     end
 
+    def get_avatar_timestamp()
+        require_user!
+        timestamp = neo4j_query_expect_one(<<~END_OF_QUERY, {:email => @session_user[:email]})['timestamp']
+            MATCH (u: User { email: $email})
+            RETURN COALESCE(u.avatar_timestamp, 0) AS timestamp;
+        END_OF_QUERY
+        timestamp
+    end
+
+    def get_avatar()
+        require_user!
+        unit = neo4j_query_expect_one(<<~END_OF_QUERY, {:email => @session_user[:email]})['avatar']
+            MATCH (u: User { email: $email})
+            RETURN u.avatar AS avatar;
+        END_OF_QUERY
+        unit
+    end
+
+    def set_avatar(avatar, timestamp)
+        require_user!
+        if timestamp > get_avatar_timestamp()
+            neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :avatar => avatar, :timestamp => timestamp})
+                MATCH (u: User { email: $email})
+                SET u.avatar = $avatar
+                SET u.avatar_timestamp = $timestamp;
+            END_OF_QUERY
+        end
+    end
+
+    def get_font_timestamp()
+        require_user!
+        timestamp = neo4j_query_expect_one(<<~END_OF_QUERY, {:email => @session_user[:email]})['timestamp']
+            MATCH (u: User { email: $email})
+            RETURN COALESCE(u.font_timestamp, 0) AS timestamp;
+        END_OF_QUERY
+        timestamp
+    end
+
+    def get_font()
+        require_user!
+        unit = neo4j_query_expect_one(<<~END_OF_QUERY, {:email => @session_user[:email]})['font']
+            MATCH (u: User { email: $email})
+            RETURN u.font AS font;
+        END_OF_QUERY
+        unit
+    end
+
+    def set_font(font, timestamp)
+        require_user!
+        if timestamp > get_font_timestamp()
+            neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :font => font, :timestamp => timestamp})
+                MATCH (u: User { email: $email})
+                SET u.font = $font
+                SET u.font_timestamp = $timestamp;
+            END_OF_QUERY
+        end
+    end
+
+    def get_color_scheme_timestamp()
+        require_user!
+        timestamp = neo4j_query_expect_one(<<~END_OF_QUERY, {:email => @session_user[:email]})['timestamp']
+            MATCH (u: User { email: $email})
+            RETURN COALESCE(u.color_scheme_timestamp, 0) AS timestamp;
+        END_OF_QUERY
+        timestamp
+    end
+
+    def get_color_scheme()
+        require_user!
+        unit = neo4j_query_expect_one(<<~END_OF_QUERY, {:email => @session_user[:email]})['color_scheme']
+            MATCH (u: User { email: $email})
+            RETURN u.color_scheme AS color_scheme;
+        END_OF_QUERY
+        unit
+    end
+
+    def set_color_scheme(color_scheme, timestamp)
+        require_user!
+        if timestamp > get_color_scheme_timestamp()
+            neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :color_scheme => color_scheme, :timestamp => timestamp})
+                MATCH (u: User { email: $email})
+                SET u.color_scheme = $color_scheme
+                SET u.color_scheme_timestamp = $timestamp;
+            END_OF_QUERY
+        end
+    end
+
     post '/api/get_active_unit' do
         respond(:active_unit => get_active_unit())
     end
@@ -725,7 +812,10 @@ class Main < Sinatra::Base
             :nc_login => @session_user[:nc_login],
             :coins => get_coins(),
             :shop_items => get_shop_items(),
-            :active_unit => get_active_unit()
+            :active_unit => get_active_unit(),
+            :avatar => get_avatar(),
+            :color_scheme => get_color_scheme(),
+            :font => get_font()
         }
         result
     end
@@ -736,8 +826,13 @@ class Main < Sinatra::Base
 
     post '/api/update_profile' do
         require_user!
-        data = parse_request_data(:optional_keys => [:coins, :active_unit, :active_unit_timestamp], 
-            :types => {:coins => Integer, :active_unit => Integer, :active_unit_timestamp => Integer})
+        data = parse_request_data(:optional_keys => [:coins, 
+            :active_unit, :active_unit_timestamp,
+            :avatar, :avatar_timestamp,
+            :color_scheme, :color_scheme_timestamp,
+            :font, :font_timestamp], 
+            :types => {:coins => Integer, :active_unit => Integer, :active_unit_timestamp => Integer,
+                       :avatar_timestamp => Integer, :color_scheme_timestamp => Integer, :font_timestamp => Integer})
         if data[:coins]
             if data[:coins] > get_coins()
                 set_coins(data[:coins])
@@ -745,6 +840,15 @@ class Main < Sinatra::Base
         end
         if data[:active_unit] && data[:active_unit_timestamp]
             set_active_unit(data[:active_unit], data[:active_unit_timestamp])
+        end
+        if data[:avatar] && data[:avatar_timestamp]
+            set_avatar(data[:avatar], data[:avatar_timestamp])
+        end
+        if data[:color_scheme] && data[:color_scheme_timestamp]
+            set_color_scheme(data[:color_scheme], data[:color_scheme_timestamp])
+        end
+        if data[:font] && data[:font_timestamp]
+            set_font(data[:font], data[:font_timestamp])
         end
         respond(whoami())
     end
