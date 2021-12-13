@@ -26,14 +26,23 @@ color_schemes:
   dark_brown: 100
   pale: 100
 fonts:
-  alegreya: 0
-  indieFlower: 200
-  patrickHand: 200
-  mali: 200
-  neucha: 200
-  specialElite: 200
-  alata: 200
-  amaranth: 200
-  solway: 200
-  quicksand: 200
-  bellota: 200
+  'Alata': 200
+  'Alegreya Sans': 0
+  'Amaranth': 200
+  'Bellota': 200
+  'Cookie': 200
+  'Indie Flower': 200
+  'Itim': 200
+  'Kalam': 200
+  'Leckerli One': 200
+  'Lobster': 200
+  'Mali': 200
+  'Neucha': 200
+  'Pacifico': 200
+  'Pangolin': 200
+  'Patrick Hand': 200
+  'Quicksand': 200
+  'Schoolbell': 200
+  'Short Stack': 200
+  'Solway': 200
+  'Special Elite': 200
