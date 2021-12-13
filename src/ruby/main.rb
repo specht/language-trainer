@@ -879,6 +879,8 @@ class Main < Sinatra::Base
         item = data[:item]
         assert(@@shop.include?(category))
         assert(@@shop[category].include?(item))
+        purchased_items = get_shop_items()[:items]
+        assert(!purchased_items.include?("#{data[:category]}/#{data[:item]}"))
         price = @@shop[category][item]
         current_coins = get_coins()
         if price > current_coins
