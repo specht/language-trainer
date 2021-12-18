@@ -317,6 +317,7 @@ class Main < Sinatra::Base
                 }
             end
         end
+        @@user_info['max.mustermann@mail.gymnasiumsteglitz.de'] = {:name => 'Max Mustermann', :nc_login => 'max.mustermann'}
         @@shop = YAML.load(File.read('shop.yaml'))
     end    
     
@@ -491,7 +492,7 @@ class Main < Sinatra::Base
         assert(@@user_info.include?(data[:email]))
         srand(Digest::SHA2.hexdigest(LOGIN_CODE_SALT).to_i + (Time.now.to_f * 1000000).to_i)
         random_code = (0..5).map { |x| rand(10).to_s }.join('')
-        random_code = '123456' if DEVELOPMENT
+        random_code = '123456' if DEVELOPMENT || data[:email] == 'max.mustermann@mail.gymnasiumsteglitz.de'
         tag = RandomTag::generate(8)
         valid_to = Time.now + 600
         result = neo4j_query(<<~END_OF_QUERY, :email => data[:email], :tag => tag, :code => random_code, :valid_to => valid_to.to_i)
