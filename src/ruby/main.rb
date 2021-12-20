@@ -815,8 +815,11 @@ class Main < Sinatra::Base
             :shop_items => get_shop_items(),
             :active_unit => get_active_unit(),
             :avatar => get_avatar(),
+            :avatar_timestamp => get_avatar_timestamp(),
             :color_scheme => get_color_scheme(),
-            :font => get_font()
+            :color_scheme_timestamp => get_color_scheme_timestamp(),
+            :font => get_font(),
+            :font_timestamp => get_font_timestamp()
         }
         result
     end
