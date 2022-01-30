@@ -899,6 +899,20 @@ class Main < Sinatra::Base
         respond(:new_shop_items => shop_items)
     end
 
+    post '/api/activate_hades' do
+        require_user!
+        category = 'avatars'
+        item = 'hades'
+        price = 0
+        neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :category => category, :item => item, :price => price})
+            MATCH (u: User{ email: $email})
+            MERGE (s:ShopItem {category: $category, item: $item})
+            CREATE (u)-[:PURCHASED {price: $price}]->(s);
+        END_OF_QUERY
+        shop_items = get_shop_items()
+        respond(:result => 'Herzlichen Glückwunsch, du besitzt nun Hades, den Herrscher der Unterwelt. Synchronisiere deine App bitte einmal, dann kannst du ihn auswählen.')
+    end
+
     get '*' do
     end
 end
