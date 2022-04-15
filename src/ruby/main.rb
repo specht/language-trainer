@@ -1,3 +1,4 @@
+require 'json'
 require 'neography'
 require 'sinatra/base'
 require 'sinatra/cookies'
@@ -319,8 +320,17 @@ class Main < Sinatra::Base
         end
         @@user_info['max.mustermann@mail.gymnasiumsteglitz.de'] = {:name => 'Max Mustermann', :nc_login => 'max.mustermann'}
         @@shop = YAML.load(File.read('shop.yaml'))
-    end    
-    
+        @@voc_data = JSON.load(File.read('/repos/agr-app/flutter/data/voc.json'))
+        @@sphinx_data = JSON.load(File.read('/repos/agr-app/flutter/data/sphinx-haul.json'))
+        STDERR.puts "Voc: #{@@voc_data['words'].size}"
+        STDERR.puts "Sphinx forms: #{@@sphinx_data['forms'].size}"
+        
+        # rows = $neo4j.neo4j_query(<<~END_OF_QUERY)
+        #     MATCH (n:Entry)-[:BELONGS_TO]->(u:User) RETURN n.sha1 AS sha1, u.email AS email;
+        # END_OF_QUERY
+        # STDERR.puts rows.size
+    end
+
     configure do
         self.collect_data() unless defined?(SKIP_COLLECT_DATA) && SKIP_COLLECT_DATA
         if ENV['SERVICE'] == 'ruby' && (File.basename($0) == 'thin' || File.basename($0) == 'pry.rb')
@@ -334,7 +344,7 @@ class Main < Sinatra::Base
             binding.pry
         end
     end
-    
+
     def assert(condition, message = 'assertion failed', suppress_backtrace = false, delay = nil)
         unless condition
             debug_error message
@@ -913,6 +923,11 @@ class Main < Sinatra::Base
         respond(:result => 'Herzlichen Glückwunsch, du besitzt nun Hades, den Herrscher der Unterwelt. Synchronisiere deine App bitte einmal, dann kannst du ihn auswählen.')
     end
 
+    get '/Fw9VKPbE41ELsYPkTPiuEf' do
+        respond('hey')
+    end
+
     get '*' do
     end
+
 end
