@@ -399,7 +399,7 @@ class Main < Sinatra::Base
             sid = request.env['HTTP_X_SESSION_ID']
         end
         if sid
-            debug "SID: [#{sid}]"
+            debug "SID: [#{sid}] #{request.path}"
             if (sid.is_a? String) && (sid =~ /^[0-9A-Za-z,]+$/)
                 first_sid = sid.split(',').first
                 if first_sid =~ /^[0-9A-Za-z]+$/
