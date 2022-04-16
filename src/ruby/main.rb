@@ -398,6 +398,10 @@ class Main < Sinatra::Base
         if request.env['HTTP_X_SESSION_ID']
             sid = request.env['HTTP_X_SESSION_ID']
         end
+        app_version = nil
+        if request.env['HTTP_X_APP_VERSION']
+            app_version = request.env['HTTP_X_APP_VERSION']
+        end
         if sid
             if (sid.is_a? String) && (sid =~ /^[0-9A-Za-z,]+$/)
                 first_sid = sid.split(',').first
@@ -428,7 +432,7 @@ class Main < Sinatra::Base
                 end
             end
         end
-        debug "[#{(@session_user || {})[:email]}] #{request.path}"
+        debug "[#{((@session_user || {})[:email] || 'anon').split('@').first}@#{app_version || 'no version'}] #{request.path}"
     end
 
     after '/api/*' do
