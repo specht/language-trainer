@@ -432,7 +432,7 @@ class Main < Sinatra::Base
                 end
             end
         end
-        debug "[#{((@session_user || {})[:email] || 'anon').split('@').first}@#{app_version || 'no version'}] #{request.path}"
+        debug "[#{((@session_user || {})[:email] || 'anon').split('@').first}@#{app_version || 'unknown'}] #{request.path}"
     end
 
     after '/api/*' do
