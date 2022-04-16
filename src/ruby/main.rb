@@ -77,7 +77,7 @@ module QtsNeo4j
             @code = code
             @message = message
         end
-        
+
         def to_s
             "Cypher Error\n#{@code}\n#{@message}"
         end
@@ -123,7 +123,7 @@ module QtsNeo4j
             @v
         end
     end
-    
+
     def wait_for_neo4j
         delay = 1
         10.times do
@@ -141,7 +141,7 @@ module QtsNeo4j
 
     def neo4j_query(query_str, options = {})
         # if DEVELOPMENT
-        #     debug(query_str, 1) 
+        #     debug(query_str, 1)
         #     debug(options.to_json, 1)
         # end
         # return
@@ -162,7 +162,7 @@ module QtsNeo4j
                 STDERR.puts "ATTENTION: Giving up on query after 5 tries."
                 raise 'neo4j_oopsie'
             end
-                
+
             if temp_result['errors'] && !temp_result['errors'].empty?
                 STDERR.puts "This:"
                 STDERR.puts temp_result.to_yaml
@@ -221,7 +221,7 @@ class RandomTag
     def self.generate(length = 12)
         self.to_base31(SecureRandom.hex(length).to_i(16))[0, length]
     end
-end    
+end
 
 def mail_html_to_plain_text(s)
     s.gsub('<p>', "\n\n").gsub(/<br\s*\/?>/, "\n").gsub(/<\/?[^>]*>/, '').strip
@@ -236,7 +236,7 @@ def deliver_mail(plain_text = nil, &block)
                 content_type 'text/html; charset=UTF-8'
                 body message
             end
-            
+
             text_part do
                 content_type 'text/plain; charset=UTF-8'
                 body mail_html_to_plain_text(message)
@@ -267,8 +267,9 @@ end
 
 class SetupDatabase
     include QtsNeo4j
-    
+
     def setup(main)
+        wait_for_neo4j
         delay = 1
         10.times do
             begin
@@ -277,8 +278,9 @@ class SetupDatabase
                 transaction do
                     debug "Setting up constraints and indexes..."
                     neo4j_query("CREATE CONSTRAINT ON (n:LoginCode) ASSERT n.tag IS UNIQUE")
-                    neo4j_query("CREATE INDEX ON :Entry(sha1)")
-                    neo4j_query("CREATE INDEX ON :User(email)")
+                    neo4j_query("CREATE CONSTRAINT ON (n:User) ASSERT n.email IS UNIQUE")
+                    neo4j_query("CREATE CONSTRAINT ON (n:Entry) ASSERT n.sha1 IS UNIQUE")
+                    # neo4j_query("CREATE INDEX ON :Entry(sha1)")
                     neo4j_query("CALL db.index.fulltext.createRelationshipIndex('belongs_to_timestamp_index', ['BELONGS_TO'], ['timestamp']);
                     ")
                 end
@@ -324,11 +326,20 @@ class Main < Sinatra::Base
         @@sphinx_data = JSON.load(File.read('/repos/agr-app/flutter/data/sphinx-haul.json'))
         STDERR.puts "Voc: #{@@voc_data['words'].size}"
         STDERR.puts "Sphinx forms: #{@@sphinx_data['forms'].size}"
-        
-        # rows = $neo4j.neo4j_query(<<~END_OF_QUERY)
-        #     MATCH (n:Entry)-[:BELONGS_TO]->(u:User) RETURN n.sha1 AS sha1, u.email AS email;
+        # emails = $neo4j.neo4j_query(<<~END_OF_QUERY).map { |x| x['email'] }
+        #     MATCH (u:User) RETURN u.email AS email;
         # END_OF_QUERY
-        # STDERR.puts rows.size
+        # STDERR.print "Fetching data for users..."
+        # emails.each do |email|
+        #     rows = $neo4j.neo4j_query(<<~END_OF_QUERY, {:email => email})
+        #         MATCH (e:Entry)-[r:BELONGS_TO]->(u:User {email: $email}) RETURN r.timestamp AS t, e.sha1 AS sha1;
+        #     END_OF_QUERY
+        #     rows.each do |row|
+        #         t = row['t']
+        #         sha1 = row['sha1']
+        #     end
+        # end
+        # STDERR.puts
     end
 
     configure do
@@ -366,7 +377,7 @@ class Main < Sinatra::Base
             assert(data[key.to_s].size <= (options[:max_value_lengths][key] || options[:max_string_length]), 'too_much_data')
         end
     end
-    
+
     def parse_request_data(options = {})
         options[:max_body_length] ||= 512
         options[:max_string_length] ||= 512
@@ -400,7 +411,7 @@ class Main < Sinatra::Base
             raise
         end
     end
-    
+
     before '*' do
         response.headers['Access-Control-Allow-Origin'] = "https://agr.gymnasiumsteglitz.de"
         response.headers['Access-Control-Request-Headers'] = 'X-SESSION-ID'
@@ -448,7 +459,7 @@ class Main < Sinatra::Base
             end
         end
     end
-    
+
     after '/api/*' do
         if @respond_content
             response.body = @respond_content
@@ -461,22 +472,22 @@ class Main < Sinatra::Base
             response.body = @respond_hash.to_json
         end
     end
-    
+
     def respond(hash = {})
         @respond_hash = hash
     end
-    
+
     def respond_raw_with_mimetype(content, mimetype)
         @respond_content = content
         @respond_mimetype = mimetype
     end
-    
+
     def respond_raw_with_mimetype_and_filename(content, mimetype, filename)
         @respond_content = content
         @respond_mimetype = mimetype
         @respond_filename = filename
     end
-    
+
     def htmlentities(s)
         @html_entities_coder ||= HTMLEntities.new
         @html_entities_coder.encode(s)
@@ -491,7 +502,7 @@ class Main < Sinatra::Base
         response.headers['Access-Control-Allow-Headers'] = "Content-Type, Access-Control-Allow-Origin,X-SESSION-ID"
         response.headers['Access-Control-Request-Headers'] = 'X-SESSION-ID'
     end
-    
+
     post '/api/login' do
         data = parse_request_data(:required_keys => [:email])
         data[:email] = data[:email].strip.downcase
@@ -517,7 +528,7 @@ class Main < Sinatra::Base
                     to email_recipient
                     bcc SMTP_FROM
                     from SMTP_FROM
-                    
+
                     subject "Dein Anmeldecode lautet #{random_code}"
 
                     StringIO.open do |io|
@@ -544,21 +555,21 @@ class Main < Sinatra::Base
         response_hash = {:tag => tag}
         respond(response_hash)
     end
-    
+
     def create_session(email, expire_hours)
         sid = RandomTag::generate(24)
         assert(sid =~ /^[0-9A-Za-z]+$/)
         data = {:sid => sid,
                 :expires => (DateTime.now() + expire_hours / 24.0).to_s}
-        
+
         neo4j_query_expect_one(<<~END_OF_QUERY, :email => email, :data => data)
             MATCH (u:User {email: $email})
             CREATE (s:Session $data)-[:BELONGS_TO]->(u)
-            RETURN s; 
+            RETURN s;
         END_OF_QUERY
         sid
     end
-    
+
     post '/api/confirm_login' do
         data = parse_request_data(:required_keys => [:tag, :code])
         data[:code] = data[:code].gsub(/[^0-9]/, '')
@@ -614,7 +625,7 @@ class Main < Sinatra::Base
         require_user!
         results = neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email]}).to_a
             MATCH (e:Entry)-[r:BELONGS_TO]->(u:User {email: $email})
-            RETURN r.timestamp 
+            RETURN r.timestamp
             ORDER BY r.timestamp DESC
             LIMIT 1;
         END_OF_QUERY
@@ -635,7 +646,7 @@ class Main < Sinatra::Base
         END_OF_QUERY
         coins
     end
-                       
+
     def set_coins(coins)
         require_user!
         neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :coins => coins})
@@ -643,14 +654,14 @@ class Main < Sinatra::Base
             SET u.coins = $coins;
         END_OF_QUERY
     end
-                       
+
     post '/api/get_coins' do
         respond(:coins => get_coins())
     end
 
     post '/api/update_coins' do
         require_user!
-        data = parse_request_data(:required_keys => [:coins], 
+        data = parse_request_data(:required_keys => [:coins],
             :types => {:coins => Integer})
         if data[:coins] > get_coins()
             set_coins(data[:coins])
@@ -840,11 +851,11 @@ class Main < Sinatra::Base
 
     post '/api/update_profile' do
         require_user!
-        data = parse_request_data(:optional_keys => [:coins, 
+        data = parse_request_data(:optional_keys => [:coins,
             :active_unit, :active_unit_timestamp,
             :avatar, :avatar_timestamp,
             :color_scheme, :color_scheme_timestamp,
-            :font, :font_timestamp], 
+            :font, :font_timestamp],
             :types => {:coins => Integer, :active_unit => Integer, :active_unit_timestamp => Integer,
                        :avatar_timestamp => Integer, :color_scheme_timestamp => Integer, :font_timestamp => Integer})
         if data[:coins]
