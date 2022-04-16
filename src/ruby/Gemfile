@@ -1,7 +1,7 @@
 source 'https://rubygems.org'
 
 gem 'mail'
-gem 'neography'
+gem 'neo4j-ruby-driver'
 gem 'rerun'
 gem 'sinatra'
 gem 'sinatra-contrib'

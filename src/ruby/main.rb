@@ -1,5 +1,5 @@
 require 'json'
-require 'neography'
+require 'neo4j_ruby_driver'
 require 'sinatra/base'
 require 'sinatra/cookies'
 require 'mail'
@@ -50,26 +50,6 @@ def fix_h_to_hh(s)
     end
 end
 
-Neography.configure do |config|
-    config.protocol             = "http"
-    config.server               = "neo4j"
-    config.port                 = 7474
-    config.directory            = ""  # prefix this path with '/'
-    config.cypher_path          = "/cypher"
-    config.gremlin_path         = "/ext/GremlinPlugin/graphdb/execute_script"
-    config.log_file             = "/dev/shm/neography.log"
-    config.log_enabled          = false
-    config.slow_log_threshold   = 0    # time in ms for query logging
-    config.max_threads          = 20
-    config.authentication       = nil  # 'basic' or 'digest'
-    config.username             = nil
-    config.password             = nil
-    config.parser               = MultiJsonParser
-    config.http_send_timeout    = 1200
-    config.http_receive_timeout = 1200
-    config.persistent           = true
-end
-
 module QtsNeo4j
 
     class CypherError < StandardError
@@ -84,33 +64,31 @@ module QtsNeo4j
     end
 
     def transaction(&block)
-        @neo4j ||= Neography::Rest.new
-        @tx ||= []
-        item = nil
-        if @tx.empty?
-            item = @neo4j.begin_transaction
-#             STDERR.puts "Starting transaction ##{item['commit'].split("/")[-2]}."
-            @transaction_size = 0
-        end
-        @tx << item
-        begin
-            result = yield
-            item = @tx.pop
-            unless item.nil?
-#                 STDERR.puts "Committing transaction ##{item['commit'].split("/")[-2]} with #{@transaction_size} queries."
-                @neo4j.commit_transaction(item)
-            end
-            result
-        rescue
-            item = @tx.pop
-            unless item.nil?
-                begin
-                    debug("Rolling back transaction ##{item['commit'].split("/")[-2]} with #{@transaction_size} queries.")
-                    @neo4j.rollback_transaction(item)
-                rescue
+        @@neo4j_driver ||= Neo4j::Driver::GraphDatabase.driver('bolt://neo4j:7687')
+        if @has_bolt_session.nil?
+            begin
+                @has_bolt_session = true
+                @@neo4j_driver.session do |session|
+                    if @has_bolt_transaction.nil?
+                        begin
+                            session.write_transaction do |tx|
+                                @has_bolt_transaction = tx
+                                yield
+                            end
+                        ensure
+                            @has_bolt_transaction = nil
+                        end
+                    else
+                        yield
+                    end
                 end
+            rescue StandardError => e
+                debug("[NEO4J ERROR] #{e}")
+            ensure
+                @has_bolt_session = nil
             end
-            raise
+        else
+            yield
         end
     end
 
@@ -139,65 +117,58 @@ module QtsNeo4j
         end
     end
 
+    def parse_neo4j_result(x)
+        if x.is_a?(Neo4j::Driver::Types::Node) || x.is_a?(Neo4j::Driver::Types::Relationship)
+            #ResultRow.new(x.properties)
+            v = x.properties
+            Hash[v.map { |k, v| [k.to_sym, v] }]
+        elsif x.is_a?(Array)
+            x.map { |y| parse_neo4j_result(y) }
+        else
+            x
+        end
+    end
+
     def neo4j_query(query_str, options = {})
+        # TODO: In preparation for migration from Neo4j 3 to 4, replace $key syntax with $key
+        # TODO: Make this stand out, fix the code by and by
+        # options.keys.each do |key|
+            # query_str.gsub!("{#{key}}", "$#{key}")
+        # end
         # if DEVELOPMENT
-        #     debug(query_str, 1)
+        #     debug(query_str, 1) 
         #     debug(options.to_json, 1)
         # end
         # return
         transaction do
             temp_result = nil
-            5.times do
-                begin
-                    temp_result = @neo4j.in_transaction(@tx.first, [query_str, options])
-                    break
-                rescue Excon::Error::Socket
-                    STDERR.puts "ATTENTION: Retrying query:"
-                    STDERR.puts query_str
-                    STDERR.puts options.to_json
-                    sleep 1.0
-                end
-            end
-            if temp_result.nil?
-                STDERR.puts "ATTENTION: Giving up on query after 5 tries."
-                raise 'neo4j_oopsie'
-            end
+            temp_result = @has_bolt_transaction.run(query_str, options)
 
-            if temp_result['errors'] && !temp_result['errors'].empty?
-                STDERR.puts "This:"
-                STDERR.puts temp_result.to_yaml
-                raise CypherError.new(temp_result['errors'].first['code'], temp_result['errors'].first['message'])
-            end
             result = []
-            temp_result['results'].first['data'].each_with_index do |row, row_index|
-                result << {}
-                temp_result['results'].first['columns'].each_with_index do |key, key_index|
-                    if row['row'][key_index].is_a? Hash
-                        result.last[key] = ResultRow.new(row['row'][key_index])
-                    else
-                        result.last[key] = row['row'][key_index]
-                    end
+            temp_result.each do |row|
+                item = {}
+                row.keys.each.with_index do |key, i|
+                    v = row.values[i]
+                    item[key.to_s] = parse_neo4j_result(v)
                 end
+                result << item
             end
-            @transaction_size += 1
             result
         end
     end
 
     def neo4j_query_expect_one(query_str, options = {})
-        transaction do
-            result = neo4j_query(query_str, options).to_a
-            unless result.size == 1
-                if DEVELOPMENT
-                    debug '-' * 40
-                    debug query_str
-                    debug options.to_json
-                    debug '-' * 40
-                end
-                raise "Expected one result but got #{result.size}" 
+        result = neo4j_query(query_str, options)
+        unless result.size == 1
+            if DEVELOPMENT
+                debug '-' * 40
+                debug query_str
+                debug options.to_json
+                debug '-' * 40
             end
-            result.first
+            raise "Expected one result but got #{result.size}"
         end
+        result.first
     end
 end
 
@@ -440,10 +411,10 @@ class Main < Sinatra::Base
                     END_OF_QUERY
                     if results.size == 1
                         begin
-                            session = results.first['s'].props
+                            session = results.first['s']
                             session_expiry = session[:expires]
                             if DateTime.parse(session_expiry) > DateTime.now
-                                email = results.first['u'].props[:email]
+                                email = results.first['u'][:email]
                                 @session_user = @@user_info[email].dup
                                 @session_user[:email] = email
                             end
@@ -583,8 +554,8 @@ class Main < Sinatra::Base
             respond({:error => 'code_expired'})
             assert_with_delay(false, "Code expired", true)
         end
-        user = result['u'].props
-        login_code = result['l'].props
+        user = result['u']
+        login_code = result['l']
         if login_code[:tries] > MAX_LOGIN_TRIES
             neo4j_query(<<~END_OF_QUERY, :tag => data[:tag])
                 MATCH (l:LoginCode {tag: $tag})
@@ -884,7 +855,7 @@ class Main < Sinatra::Base
     end
 
     def get_shop_items()
-        rows = neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email]}).map { |x| {:item => x['s'].props, :price => x['price']} }
+        rows = neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email]}).map { |x| {:item => x['s'], :price => x['price']} }
             MATCH (u: User{ email: $email})-[r:PURCHASED]->(s:ShopItem)
             RETURN s, r.price AS price;
         END_OF_QUERY

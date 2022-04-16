@@ -15,7 +15,7 @@ class DumpDatabase
                 node = {
                     :id => result['id'],
                     :labels => result['labels'],
-                    :properties => result['n'].props
+                    :properties => result['n']
                 }
                 puts "n #{node.to_json}"
             end
@@ -31,7 +31,7 @@ class DumpDatabase
                     :type => result['type'],
                     :from => result['from'],
                     :to => result['to'],
-                    :properties => result['r'].props
+                    :properties => result['r']
                 }
                 puts "r #{relationship.to_json}"
             end
