@@ -598,19 +598,11 @@ class Main < Sinatra::Base
             respond(:invalid_session_please_delete => true)
         end
         require_user!
-        results = neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email]}).to_a
+        timestamp = neo4j_query_expect_one(<<~END_OF_QUERY, {:email => @session_user[:email]})['t']
             MATCH (e:Entry)-[r:BELONGS_TO]->(u:User {email: $email})
-            RETURN r.timestamp
-            ORDER BY r.timestamp DESC
-            LIMIT 1;
+            RETURN COALESCE(MAX(r.timestamp), 0) AS t;
         END_OF_QUERY
-        timestamp = 0
-        unless results.empty?
-            timestamp = results[0]['r.timestamp'] || 0
-        end
-        result = {}
-        result[:timestamp] = timestamp
-        respond(result)
+        respond(:timestamp => timestamp)
     end
 
     def get_coins()
@@ -810,6 +802,7 @@ class Main < Sinatra::Base
             :coins => get_coins(),
             :shop_items => get_shop_items(),
             :active_unit => get_active_unit(),
+            :active_unit_timestamp => get_active_unit_timestamp(),
             :avatar => get_avatar(),
             :avatar_timestamp => get_avatar_timestamp(),
             :color_scheme => get_color_scheme(),
