@@ -575,7 +575,6 @@ class Main < Sinatra::Base
             MATCH (l:LoginCode {tag: $tag})
             DETACH DELETE l;
         END_OF_QUERY
-        purge_missing_sessions(session_id)
         respond(:ok => 'yeah', :sid => session_id)
     end
 
