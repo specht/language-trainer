@@ -377,7 +377,11 @@ class Main < Sinatra::Base
         if DEVELOPMENT
             response.headers['Access-Control-Allow-Origin'] = "http://localhost:8025"
         else
-            response.headers['Access-Control-Allow-Origin'] = "https://agr.gymnasiumsteglitz.de"
+            if request.path[0, 5] == '/jwt/'
+                response.headers['Access-Control-Allow-Origin'] = "https://dashboard.gymnasiumsteglitz.de"
+            else
+                response.headers['Access-Control-Allow-Origin'] = "https://agr.gymnasiumsteglitz.de"
+            end
         end
         response.headers['Access-Control-Request-Headers'] = 'X-SESSION-ID,X-JWT'
         @latest_request_body = nil
@@ -488,6 +492,16 @@ class Main < Sinatra::Base
             response.headers['Access-Control-Allow-Origin'] = "https://agr.gymnasiumsteglitz.de"
         end
         response.headers['Access-Control-Allow-Headers'] = "Content-Type, Access-Control-Allow-Origin,X-SESSION-ID,X-JWT"
+        response.headers['Access-Control-Request-Headers'] = 'X-SESSION-ID'
+    end
+
+    options '/jwt/*' do
+        if DEVELOPMENT
+            response.headers['Access-Control-Allow-Origin'] = "http://localhost:8025"
+        else
+            response.headers['Access-Control-Allow-Origin'] = "https://dashboard.gymnasiumsteglitz.de"
+        end
+        response.headers['Access-Control-Allow-Headers'] = "Content-Type, Access-Control-Allow-Origin,X-JWT"
         response.headers['Access-Control-Request-Headers'] = 'X-SESSION-ID'
     end
 
@@ -907,7 +921,7 @@ class Main < Sinatra::Base
         item = 'hades'
         price = 0
         neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :category => category, :item => item, :price => price})
-            MATCH (u: User{ email: $email})
+            MATCH (u: User {email: $email})
             MERGE (s:ShopItem {category: $category, item: $item})
             CREATE (u)-[:PURCHASED {price: $price}]->(s);
         END_OF_QUERY
@@ -923,9 +937,23 @@ class Main < Sinatra::Base
         assert(!@dashboard_jwt.nil?)
     end
 
-    post '/api/dashboard_ping' do
+    post '/jwt/dashboard_ping' do
         require_dashboard_jwt!
         respond(:pong => 'dashboard connection working', :welcome => @dashboard_user_display_name)
+    end
+
+    post '/jwt/overview_stats' do
+        require_dashboard_jwt!
+        result = neo4j_query_expect_one(<<~END_OF_QUERY)
+            MATCH (u: User)
+            WITH COUNT(u) AS user_count
+            MATCH (:Entry)-[r:BELONGS_TO]->(:User)
+            WITH user_count, COUNT(r) AS total_solved_task_count
+            MATCH (e:Entry)
+            WITH user_count, total_solved_task_count, COUNT(e) AS solved_task_count
+            RETURN user_count, total_solved_task_count, solved_task_count;
+        END_OF_QUERY
+        respond(:result => result)
     end
 
 end
