@@ -828,7 +828,7 @@ class Main < Sinatra::Base
                     MERGE (e)-[r:BELONGS_TO]->(u)
                     SET r.timestamp = CASE WHEN $timestamp > COALESCE(r.timestamp, 0) THEN $timestamp ELSE r.timestamp END;
                 END_OF_QUERY
-                self.class.add_entry_to_cache(email, word, timestamp)
+                self.class.add_entry_to_cache(@session_user[:email], word, timestamp)
             end
         end
         respond(:success => 'yay')
