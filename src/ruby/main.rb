@@ -313,11 +313,88 @@ class Main < Sinatra::Base
         # STDERR.puts
     end
 
+    def nav_items()
+        StringIO.open do |io|
+            nav_items = []
+            if @session_user
+                nav_items << ['/', 'Übersicht', 'fa fa-calendar']
+            else
+                nav_items << ['/', 'Anmelden', 'fa fa-sign-in']
+            end
+            return nil if nav_items.empty?
+            io.puts "<button class='navbar-toggler' type='button' data-toggle='collapse' data-target='#navbarTogglerDemo02' aria-controls='navbarTogglerDemo02' aria-expanded='false' aria-label='Toggle navigation'>"
+            io.puts "<span class='navbar-toggler-icon'></span>"
+            io.puts "</button>"
+            io.puts "<div class='collapse navbar-collapse my-0 flex-grow-0' id='navbarTogglerDemo02'>"
+            io.puts "<ul class='navbar-nav mr-auto'>"
+            nav_items.each do |x|
+                io.puts "<li class='nav-item text-nowrap'>"
+                io.puts "<a class='nav-link nav-icon' href='#{x[0]}' #{x[3]}><div class='icon'><i class='#{x[2]}'></i></div>#{x[1]}</a>"
+                io.puts "</li>"
+            end
+            io.puts "</ul>"
+            io.puts "</div>"
+            io.string
+        end
+    end
+
+    def self.compile_files(key, mimetype, paths)
+        @@compiled_files[key] ||= {:timestamp => nil, :content => nil}
+        
+        latest_file_timestamp = paths.map do |path|
+            File.mtime(File.join('/static', path))
+        end.max
+        
+        if @@compiled_files[key][:timestamp].nil? || @@compiled_files[key][:timestamp] < latest_file_timestamp
+            @@compiled_files[key][:content] = StringIO.open do |io|
+                paths.each do |path|
+                    io.puts File.read(File.join('/static', path))
+                end
+                io.string
+            end
+            @@compiled_files[key][:sha1] = Digest::SHA1.hexdigest(@@compiled_files[key][:content])[0, 16]
+            @@compiled_files[key][:timestamp] = latest_file_timestamp
+        end
+    end
+    
+    def self.compile_js()
+        files = [
+            '/bower_components/jquery/dist/jquery.min.js',
+            '/bower_components/popper.js/popper.min.js',
+            '/bower_components/bootstrap/bootstrap.min.js',
+            '/code.js',
+        ]
+        
+        self.compile_files(:js, 'application/javascript', files)
+        FileUtils::rm_rf('/gen/js/')
+        FileUtils::mkpath('/gen/js/')
+        File.open("/gen/js/compiled-#{@@compiled_files[:js][:sha1]}.js", 'w') do |f|
+            f.print(@@compiled_files[:js][:content])
+        end
+    end
+    
+    def self.compile_css()
+        files = [
+            '/bower_components/bootstrap/bootstrap.min.css',
+            '/css/styles.css',
+        ]
+        
+        self.compile_files(:css, 'text/css', files)
+        FileUtils::rm_rf('/gen/css/')
+        FileUtils::mkpath('/gen/css/')
+        File.open("/gen/css/compiled-#{@@compiled_files[:css][:sha1]}.css", 'w') do |f|
+            f.print(@@compiled_files[:css][:content])
+        end
+    end
+
     configure do
         self.collect_data() unless defined?(SKIP_COLLECT_DATA) && SKIP_COLLECT_DATA
         if ENV['SERVICE'] == 'ruby' && (File.basename($0) == 'thin' || File.basename($0) == 'pry.rb')
             setup = SetupDatabase.new()
             setup.setup(self)
+            @@compiled_files = {}
+            self.compile_js()
+            self.compile_css()
         end
         if ['thin', 'rackup'].include?(File.basename($0))
             debug('Server is up and running!')
@@ -384,6 +461,10 @@ class Main < Sinatra::Base
     end
 
     before '*' do
+        if DEVELOPMENT && request.path[0, 5] != '/api/'
+            self.class.compile_js()
+            self.class.compile_css()
+        end
         response.headers['Access-Control-Allow-Origin'] = "https://agr.gymnasiumsteglitz.de"
         response.headers['Access-Control-Request-Headers'] = 'X-SESSION-ID'
         @latest_request_body = nil
@@ -758,7 +839,7 @@ class Main < Sinatra::Base
 
     post '/api/set_active_unit' do
         require_user!
-        data = parse_request_data(:required_keys => [:unit, :timestamp], 
+        data = parse_request_data(:required_keys => [:unit, :timestamp],
             :types => {:unit => Integer, :timestamp => Integer})
         set_active_unit(data[:unit], data[:timestamp])
         respond(:active_unit => get_active_unit())
@@ -766,7 +847,7 @@ class Main < Sinatra::Base
 
     post '/api/store_events' do
         require_user!
-        data = parse_request_data(:required_keys => [:words], 
+        data = parse_request_data(:required_keys => [:words],
             :max_body_length => 0x100000, :types => {:words => Hash})
         transaction do
             data[:words].each_pair do |word, timestamp|
@@ -783,7 +864,7 @@ class Main < Sinatra::Base
 
     post '/api/fetch_events' do
         require_user!
-        data = parse_request_data(:required_keys => [:timestamp], 
+        data = parse_request_data(:required_keys => [:timestamp],
             :types => {:timestamp => Integer})
 
         rows = neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :timestamp => data[:timestamp]}).map { |x| {:sha1 => x['sha1'], :timestamp => x['timestamp']} }
@@ -902,11 +983,88 @@ class Main < Sinatra::Base
         respond(:result => 'Herzlichen Glückwunsch, du besitzt nun Hades, den Herrscher der Unterwelt. Synchronisiere deine App bitte einmal, dann kannst du ihn auswählen.')
     end
 
-    get '/Fw9VKPbE41ELsYPkTPiuEf' do
-        respond('hey')
-    end
+    get '/*' do
+        path = request.env['REQUEST_PATH']
+        assert(path[0] == '/')
+        path = path[1, path.size - 1]
+        path = 'index' if path.empty?
+        path = path.split('/').first
+        if path.include?('..') || (path[0] == '/')
+            status 404
+            return
+        end
+        
+        @page_title = ''
+        @page_description = ''
+        
+        font_family = 'Alegreya'
+        
+        unless path.include?('/')
+            unless path.include?('.') || path[0] == '_'
+                original_path = path.dup
+                
+                path = File::join('/static', path) + '.html'
+                if File::exists?(path)
+                    content = File::read(path, :encoding => 'utf-8')
+                    
+                    @original_path = original_path
+                    if original_path == 'c'
+                        parts = request.env['REQUEST_PATH'].split('/')
+                        login_tag = parts[2]
+                        login_code = parts[3]
+                    end
+                    
+                    template_path = '_template'
+                    template_path = "/static/#{template_path}.html"
+                    @template ||= {}
+                    @template[template_path] ||= File::read(template_path, :encoding => 'utf-8')
+                    
+                    s = @template[template_path].dup
+                    s.sub!('#{CONTENT}', content)
+                    # purge_missing_sessions()
+                    page_css = ''
+                    if File::exist?(path.sub('.html', '.css'))
+                        page_css = "<style>\n#{File::read(path.sub('.html', '.css'))}\n</style>"
+                    end
+                    s.sub!('#{PAGE_CSS_HERE}', page_css)
+                    compiled_js_sha1 = @@compiled_files[:js][:sha1]
+                    compiled_css_sha1 = @@compiled_files[:css][:sha1]
+                    meta_tags = ''
 
-    get '*' do
+                    while true
+                        index = s.index('#{')
+                        break if index.nil?
+                        length = 2
+                        balance = 1
+                        while index + length < s.size && balance > 0
+                            c = s[index + length]
+                            balance -= 1 if c == '}'
+                            balance += 1 if c == '{'
+                            length += 1
+                        end
+                        code = s[index + 2, length - 3]
+                        begin
+#                             STDERR.puts code
+                            s[index, length] = eval(code).to_s || ''
+                        rescue
+                            debug "Error while evaluating for #{(@session_user || {})[:email]}:"
+                            debug code
+                            # raise
+                            s[index, length] = ''
+                        end
+                    end
+                    s.gsub!('<!--PAGE_TITLE-->', @page_title)
+                    s.gsub!('<!--PAGE_DESCRIPTION-->', @page_description)
+                    s
+                else
+                    status 404
+                end
+            else
+                status 404
+            end
+        else
+            status 404
+        end
     end
 
 end
