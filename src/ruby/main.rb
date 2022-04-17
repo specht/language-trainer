@@ -265,6 +265,21 @@ class Main < Sinatra::Base
         set :show_exceptions, false
     end
 
+    def self.init_cache()
+        @@cache = {}
+        @@cache[:users] = {}
+        @@cache[:entries] = {}
+    end
+
+    def self.add_entry_to_cache(email, sha1, t)
+        @@cache[:users][email] ||= {}
+        @@cache[:users][email][sha1] ||= t
+        @@cache[:users][email][sha1] = t if t > @@cache[:users][email][sha1]
+        @@cache[:entries][sha1] ||= {}
+        @@cache[:entries][sha1][email] ||= t
+        @@cache[:entries][sha1][email] = t if t > @@cache[:entries][sha1][email]
+    end
+
     def self.collect_data
         @@user_info = {}
         File.open('invitations.txt') do |f|
@@ -287,20 +302,23 @@ class Main < Sinatra::Base
         @@sphinx_data = JSON.load(File.read('/repos/agr-app/flutter/data/sphinx-haul.json'))
         STDERR.puts "Voc: #{@@voc_data['words'].size}"
         STDERR.puts "Sphinx forms: #{@@sphinx_data['forms'].size}"
-        # emails = $neo4j.neo4j_query(<<~END_OF_QUERY).map { |x| x['email'] }
-        #     MATCH (u:User) RETURN u.email AS email;
-        # END_OF_QUERY
-        # STDERR.print "Fetching data for users..."
-        # emails.each do |email|
-        #     rows = $neo4j.neo4j_query(<<~END_OF_QUERY, {:email => email})
-        #         MATCH (e:Entry)-[r:BELONGS_TO]->(u:User {email: $email}) RETURN r.timestamp AS t, e.sha1 AS sha1;
-        #     END_OF_QUERY
-        #     rows.each do |row|
-        #         t = row['t']
-        #         sha1 = row['sha1']
-        #     end
-        # end
-        # STDERR.puts
+        self.init_cache()
+        @@cache[:users] ||= {}
+        emails = $neo4j.neo4j_query(<<~END_OF_QUERY).map { |x| x['email'] }
+            MATCH (u:User) RETURN u.email AS email;
+        END_OF_QUERY
+        count = 0
+        emails.each do |email|
+            rows = $neo4j.neo4j_query(<<~END_OF_QUERY, {:email => email}).each do |row|
+                MATCH (e:Entry)-[r:BELONGS_TO]->(u:User {email: $email}) RETURN r.timestamp AS t, e.sha1 AS sha1;
+            END_OF_QUERY
+                count += 1
+                t = row['t']
+                sha1 = row['sha1']
+                self.add_entry_to_cache(email, sha1, t)
+            end
+        end
+        STDERR.puts "Finished loading #{count} events from #{emails.size} users."
     end
 
     configure do
@@ -407,7 +425,7 @@ class Main < Sinatra::Base
             # STDERR.puts "Got a dashboard token!"
             # 1. decode token and check integrity via HS256
             decoded_token = JWT.decode(@dashboard_jwt, JWT_APPKEY_AGRAPP, true, {:algorithm => 'HS256'}).first
-            STDERR.puts decoded_token.to_yaml
+            # STDERR.puts decoded_token.to_yaml
             # 2. make sure the JWT is not expired
             diff = decoded_token['exp'] - Time.now.to_i
             assert(diff >= 0)
@@ -445,7 +463,13 @@ class Main < Sinatra::Base
                 end
             end
         end
-        debug "[#{((@session_user || {})[:email] || 'anon').split('@').first}@#{app_version || 'unknown'}] #{request.path}"
+        if request.env['REQUEST_METHOD'] != 'OPTIONS'
+            if @dashboard_jwt
+                debug "[#{@dashboard_user_email.split('@').first}@jwt] #{request.path}"
+            else
+                debug "[#{((@session_user || {})[:email] || 'anon').split('@').first}@#{app_version || 'unknown'}] #{request.path}"
+            end
+        end
     end
 
     after '/{api|jwt}/*' do
@@ -803,6 +827,7 @@ class Main < Sinatra::Base
                     MERGE (e)-[r:BELONGS_TO]->(u)
                     SET r.timestamp = CASE WHEN $timestamp > COALESCE(r.timestamp, 0) THEN $timestamp ELSE r.timestamp END;
                 END_OF_QUERY
+                self.class.add_entry_to_cache(email, word, timestamp)
             end
         end
         respond(:success => 'yay')
@@ -944,15 +969,87 @@ class Main < Sinatra::Base
 
     post '/jwt/overview_stats' do
         require_dashboard_jwt!
-        result = neo4j_query_expect_one(<<~END_OF_QUERY)
-            MATCH (u: User)
-            WITH COUNT(u) AS user_count
-            MATCH (:Entry)-[r:BELONGS_TO]->(:User)
-            WITH user_count, COUNT(r) AS total_solved_task_count
-            MATCH (e:Entry)
-            WITH user_count, total_solved_task_count, COUNT(e) AS solved_task_count
-            RETURN user_count, total_solved_task_count, solved_task_count;
-        END_OF_QUERY
+        result = {}
+
+        t1 = (Time.now.to_i - 3600 * 24 * 1) * 1000
+        t7 = (Time.now.to_i - 3600 * 24 * 7) * 1000
+        t28 = (Time.now.to_i - 3600 * 24 * 28) * 1000
+
+        td1 = 0
+        td7 = 0
+        td28 = 0
+        tdall = 0
+
+        tvd1 = 0
+        tvd7 = 0
+        tvd28 = 0
+        tvdall = 0
+
+        tfd1 = 0
+        tfd7 = 0
+        tfd28 = 0
+        tfdall = 0
+
+        ud1 = Set.new()
+        ud7 = Set.new()
+        ud28 = Set.new()
+        udall = Set.new()
+
+        @@cache[:entries].each_pair do |sha1, users|
+            is_voc = @@voc_data['words'].include?(sha1)
+            is_form = @@sphinx_data['forms'].include?(sha1)
+            users.each_pair do |email, t|
+                if t > t1
+                    td1 += 1
+                    tvd1 += 1 if is_voc
+                    tfd1 += 1 if is_form
+                end
+                if t > t7
+                    td7 += 1
+                    tvd7 += 1 if is_voc
+                    tfd7 += 1 if is_form
+                end
+                if t > t28
+                    td28 += 1
+                    tvd28 += 1 if is_voc
+                    tfd28 += 1 if is_form
+                end
+                tdall += 1
+                tvdall += 1 if is_voc
+                tfdall += 1 if is_form
+
+                ud1 << email if t > t1
+                ud7 << email if t > t7
+                ud28 << email if t > t28
+                udall << email
+            end
+        end
+        result[:tasks_solved_1d] = td1
+        result[:tasks_solved_7d] = td7
+        result[:tasks_solved_28d] = td28
+        result[:tasks_solved_all] = tdall
+
+        result[:tasks_voc_solved_1d] = tvd1
+        result[:tasks_voc_solved_7d] = tvd7
+        result[:tasks_voc_solved_28d] = tvd28
+        result[:tasks_voc_solved_all] = tvdall
+
+        result[:tasks_form_solved_1d] = tfd1
+        result[:tasks_form_solved_7d] = tfd7
+        result[:tasks_form_solved_28d] = tfd28
+        result[:tasks_form_solved_all] = tfdall
+
+        result[:users_solved_1d] = ud1.size
+        result[:users_solved_7d] = ud7.size
+        result[:users_solved_28d] = ud28.size
+        result[:users_solved_all] = udall.size
+
+        result[:user_top_list] = []
+        @@cache[:users].keys.sort do |a, b|
+            @@cache[:users][b].size <=> @@cache[:users][a].size
+        end.each do |email|
+            result[:user_top_list] << {:email => email, :solved => @@cache[:users][email].size}
+        end
         respond(:result => result)
     end
 
