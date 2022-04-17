@@ -281,6 +281,7 @@ class Main < Sinatra::Base
     end
 
     def self.collect_data
+        $neo4j.wait_for_neo4j
         @@user_info = {}
         File.open('invitations.txt') do |f|
             f.each_line do |line|
