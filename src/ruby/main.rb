@@ -448,7 +448,7 @@ class Main < Sinatra::Base
         debug "[#{((@session_user || {})[:email] || 'anon').split('@').first}@#{app_version || 'unknown'}] #{request.path}"
     end
 
-    after '/api/*' do
+    after '/{api|jwt}/*' do
         if @respond_content
             response.body = @respond_content
             response.headers['Content-Type'] = @respond_mimetype
@@ -491,7 +491,7 @@ class Main < Sinatra::Base
         else
             response.headers['Access-Control-Allow-Origin'] = "https://agr.gymnasiumsteglitz.de"
         end
-        response.headers['Access-Control-Allow-Headers'] = "Content-Type, Access-Control-Allow-Origin,X-SESSION-ID,X-JWT"
+        response.headers['Access-Control-Allow-Headers'] = "Content-Type, Access-Control-Allow-Origin,X-SESSION-ID"
         response.headers['Access-Control-Request-Headers'] = 'X-SESSION-ID'
     end
 
@@ -502,7 +502,7 @@ class Main < Sinatra::Base
             response.headers['Access-Control-Allow-Origin'] = "https://dashboard.gymnasiumsteglitz.de"
         end
         response.headers['Access-Control-Allow-Headers'] = "Content-Type, Access-Control-Allow-Origin,X-JWT"
-        response.headers['Access-Control-Request-Headers'] = 'X-SESSION-ID'
+        response.headers['Access-Control-Request-Headers'] = 'X-JWT'
     end
 
     post '/api/login' do
