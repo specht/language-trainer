@@ -1,4 +1,5 @@
 require 'json'
+require 'jwt'
 require 'neo4j_ruby_driver'
 require 'sinatra/base'
 require 'sinatra/cookies'
@@ -373,8 +374,12 @@ class Main < Sinatra::Base
     end
 
     before '*' do
-        response.headers['Access-Control-Allow-Origin'] = "https://agr.gymnasiumsteglitz.de"
-        response.headers['Access-Control-Request-Headers'] = 'X-SESSION-ID'
+        if DEVELOPMENT
+            response.headers['Access-Control-Allow-Origin'] = "http://localhost:8025"
+        else
+            response.headers['Access-Control-Allow-Origin'] = "https://agr.gymnasiumsteglitz.de"
+        end
+        response.headers['Access-Control-Request-Headers'] = 'X-SESSION-ID,X-JWT'
         @latest_request_body = nil
         @latest_request_body_parsed = nil
         # before any API request, determine currently logged in user via the provided session ID
@@ -383,7 +388,6 @@ class Main < Sinatra::Base
         if request.cookies.include?('sid')
             sid = request.cookies['sid']
         end
-        # STDERR.puts request.headers.to_yaml
         if request.env['HTTP_X_SESSION_ID']
             sid = request.env['HTTP_X_SESSION_ID']
         end
@@ -391,6 +395,22 @@ class Main < Sinatra::Base
         if request.env['HTTP_X_APP_VERSION']
             app_version = request.env['HTTP_X_APP_VERSION']
         end
+        @dashboard_jwt = nil
+        @dashboard_user_email = nil
+        @dashboard_user_display_name = nil
+        if request.env['HTTP_X_JWT']
+            @dashboard_jwt = request.env['HTTP_X_JWT']
+            # STDERR.puts "Got a dashboard token!"
+            # 1. decode token and check integrity via HS256
+            decoded_token = JWT.decode(@dashboard_jwt, JWT_APPKEY_AGRAPP, true, {:algorithm => 'HS256'}).first
+            STDERR.puts decoded_token.to_yaml
+            # 2. make sure the JWT is not expired
+            diff = decoded_token['exp'] - Time.now.to_i
+            assert(diff >= 0)
+            @dashboard_user_email = decoded_token['email']
+            @dashboard_user_display_name = decoded_token['display_name']
+        end
+
         if sid
             if (sid.is_a? String) && (sid =~ /^[0-9A-Za-z,]+$/)
                 first_sid = sid.split(',').first
@@ -462,8 +482,12 @@ class Main < Sinatra::Base
     end
 
     options '/api/*' do
-        response.headers['Access-Control-Allow-Origin'] = "https://agr.gymnasiumsteglitz.de"
-        response.headers['Access-Control-Allow-Headers'] = "Content-Type, Access-Control-Allow-Origin,X-SESSION-ID"
+        if DEVELOPMENT
+            response.headers['Access-Control-Allow-Origin'] = "http://localhost:8025"
+        else
+            response.headers['Access-Control-Allow-Origin'] = "https://agr.gymnasiumsteglitz.de"
+        end
+        response.headers['Access-Control-Allow-Headers'] = "Content-Type, Access-Control-Allow-Origin,X-SESSION-ID,X-JWT"
         response.headers['Access-Control-Request-Headers'] = 'X-SESSION-ID'
     end
 
@@ -893,6 +917,15 @@ class Main < Sinatra::Base
 
     get '/*' do
         ''
+    end
+
+    def require_dashboard_jwt!
+        assert(!@dashboard_jwt.nil?)
+    end
+
+    post '/api/dashboard_ping' do
+        require_dashboard_jwt!
+        respond(:pong => 'dashboard connection working', :welcome => @dashboard_user_display_name)
     end
 
 end

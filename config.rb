@@ -5,8 +5,8 @@ require 'json'
 require 'yaml'
 require './env.rb'
 
-DEV_NGINX_PORT = DEVELOPMENT ? 8025 : 8020
-DEV_NEO4J_PORT = 8021
+DEV_NGINX_PORT = DEVELOPMENT ? 8035 : 8020
+DEV_NEO4J_PORT = 8031
 NEO4J_DATA_PATH = File::join(DATA_PATH, 'neo4j')
 NEO4J_LOGS_PATH = File::join(LOGS_PATH, 'neo4j')
 RAW_FILES_PATH = File::join(DATA_PATH, 'raw')
@@ -133,8 +133,8 @@ if DEVELOPMENT
     docker_compose[:services][:nginx][:ports] = ["0.0.0.0:#{DEV_NGINX_PORT}:80"]
 end
 if DEVELOPMENT
-    docker_compose[:services][:neo4j][:ports] = ["127.0.0.1:#{DEV_NEO4J_PORT}:7474",
-                                                 "127.0.0.1:7687:7687"]
+    docker_compose[:services][:neo4j][:ports] = ["127.0.0.1:#{DEV_NEO4J_PORT}:7474"]
+                                                #  "127.0.0.1:7687:7687"]
 else
     docker_compose[:services].values.each do |x|
         x[:restart] = :always
