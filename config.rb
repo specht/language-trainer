@@ -74,17 +74,6 @@ nginx_config = <<~eos
                    image/x-icon
                    image/svg+xml;
 
-        location /raw/ {
-            rewrite ^/raw(.*)$ $1 break;
-            root /raw;
-        }
-
-        location /gen/ {
-            add_header Cache-Control max-age=60;
-            rewrite ^/gen(.*)$ $1 break;
-            root /gen;
-        }                   
-
         location / {
             root /usr/share/nginx/html;
             try_files $uri @ruby;
