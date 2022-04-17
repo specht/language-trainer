@@ -269,6 +269,7 @@ class Main < Sinatra::Base
         @@cache = {}
         @@cache[:users] = {}
         @@cache[:entries] = {}
+        @@cache[:last_timestamp_for_user] = {}
     end
 
     def self.add_entry_to_cache(email, sha1, t)
@@ -278,6 +279,8 @@ class Main < Sinatra::Base
         @@cache[:entries][sha1] ||= {}
         @@cache[:entries][sha1][email] ||= t
         @@cache[:entries][sha1][email] = t if t > @@cache[:entries][sha1][email]
+        @@cache[:last_timestamp_for_user][email] ||= t
+        @@cache[:last_timestamp_for_user][email] = t if t > @@cache[:last_timestamp_for_user][email]
     end
 
     def self.collect_data
@@ -1049,7 +1052,11 @@ class Main < Sinatra::Base
         @@cache[:users].keys.sort do |a, b|
             @@cache[:users][b].size <=> @@cache[:users][a].size
         end.each do |email|
-            result[:user_top_list] << {:email => email, :solved => @@cache[:users][email].size}
+            result[:user_top_list] << {
+                :email => email, 
+                :solved => @@cache[:users][email].size,
+                :last_activity => @@cache[:last_timestamp_for_user][email]
+            }
         end
         respond(:result => result)
     end
