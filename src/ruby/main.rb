@@ -279,7 +279,7 @@ class Main < Sinatra::Base
         new_version_code = version.split('+')[1].to_i
         if new_version_code > old_version_code
             STDERR.puts "UPDATE VERSION: #{email} #{version}"
-            neo4j_query(<<~END_OF_QUERY, {:email => email, :version => version})
+            $neo4j.neo4j_query(<<~END_OF_QUERY, {:email => email, :version => version})
                 MATCH (u:User {email: $email})
                 SET u.latest_version = $version;
             END_OF_QUERY
