@@ -888,10 +888,6 @@ class Main < Sinatra::Base
     end
 
     post '/api/whoami' do
-        require_user!
-        if @session_app_version
-            self.class.update_version_for_user(@session_user[:email], @session_app_version)
-        end
         respond(whoami())
     end
 
@@ -920,6 +916,9 @@ class Main < Sinatra::Base
         end
         if data[:font] && data[:font_timestamp]
             set_font(data[:font], data[:font_timestamp])
+        end
+        if @session_app_version
+            self.class.update_version_for_user(@session_user[:email], @session_app_version)
         end
         respond(whoami())
     end
