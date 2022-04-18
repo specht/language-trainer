@@ -1077,7 +1077,7 @@ class Main < Sinatra::Base
         result[:users_solved_all] = udall.size
 
         result[:user_top_list] = []
-        result[:last_activity_cat_for_user] = {}
+        result[:user_info] = {}
         @@cache[:users].keys.sort do |a, b|
             @@cache[:users][b].size <=> @@cache[:users][a].size
         end.each do |email|
@@ -1092,7 +1092,10 @@ class Main < Sinatra::Base
             cat = '28d' if t > t28
             cat = '7d' if t > t7
             cat = '1d' if t > t1
-            result[:last_activity_cat_for_user][email] = cat
+            result[:user_info][email] = {
+                :last_activity_cat => cat,
+                :version => @@cache[:latest_version_for_user][email]
+            }
         end
         result[:unit_for_user] = {}
         neo4j_query(<<~END_OF_QUERY).each do |row|
