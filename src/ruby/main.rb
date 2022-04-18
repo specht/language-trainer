@@ -473,9 +473,9 @@ class Main < Sinatra::Base
                                 email = results.first['u'][:email]
                                 @session_user = @@user_info[email].dup
                                 @session_user[:email] = email
-                                if app_version
-                                    self.class.update_version_for_user(email, app_version)
-                                end
+                                # if app_version
+                                #     self.class.update_version_for_user(email, app_version)
+                                # end
                             end
                         rescue
                             # something went wrong, delete the session
