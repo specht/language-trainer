@@ -1058,6 +1058,13 @@ class Main < Sinatra::Base
                 :last_activity => @@cache[:last_timestamp_for_user][email]
             }
         end
+        result[:unit_for_user] = {}
+        neo4j_query(<<~END_OF_QUERY).each do |row|
+            MATCH (u:User)
+            RETURN u.email AS email, COALESCE(u.unit, 1) AS unit;
+        END_OF_QUERY
+            result[:unit_for_user][row['email']] = row['unit']
+        end
         respond(:result => result)
     end
 
