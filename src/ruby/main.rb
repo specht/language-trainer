@@ -1005,24 +1005,24 @@ class Main < Sinatra::Base
             is_voc = @@voc_data['words'].include?(sha1)
             is_form = @@sphinx_data['forms'].include?(sha1)
             users.each_pair do |email, t|
-                tu[email] ||= {:t1 => 0, :t7 => 0, :t28 => 0, :tall => 0}
+                tu[email] ||= {:t1d => 0, :t7d => 0, :t28d => 0, :tall => 0}
                 if t > t1
                     td1 += 1
                     tvd1 += 1 if is_voc
                     tfd1 += 1 if is_form
-                    tu[email][:t1] += 1
+                    tu[email][:t1d] += 1
                 end
                 if t > t7
                     td7 += 1
                     tvd7 += 1 if is_voc
                     tfd7 += 1 if is_form
-                    tu[email][:t7] += 1
+                    tu[email][:t7d] += 1
                 end
                 if t > t28
                     td28 += 1
                     tvd28 += 1 if is_voc
                     tfd28 += 1 if is_form
-                    tu[email][:t28] += 1
+                    tu[email][:t28d] += 1
                 end
                 tdall += 1
                 tvdall += 1 if is_voc
@@ -1056,15 +1056,22 @@ class Main < Sinatra::Base
         result[:users_solved_all] = udall.size
 
         result[:user_top_list] = []
+        result[:last_activity_cat_for_user] = {}
         @@cache[:users].keys.sort do |a, b|
             @@cache[:users][b].size <=> @@cache[:users][a].size
         end.each do |email|
+            t = @@cache[:last_timestamp_for_user][email]
             result[:user_top_list] << {
-                :email => email, 
+                :email => email,
                 :solved => @@cache[:users][email].size,
-                :last_activity => @@cache[:last_timestamp_for_user][email],
+                :last_activity => t,
                 :st => tu[email]
             }
+            cat = 'all'
+            cat = '28d' if t > t28
+            cat = '7d' if t > t7
+            cat = '1d' if t > t1
+            result[:last_activity_cat_for_user][email] = cat
         end
         result[:unit_for_user] = {}
         neo4j_query(<<~END_OF_QUERY).each do |row|
