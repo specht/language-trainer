@@ -1107,4 +1107,28 @@ class Main < Sinatra::Base
         respond(:result => result)
     end
 
+    post '/jwt/user_details' do
+        require_dashboard_jwt!
+        data = parse_request_data(:required_keys => [:email])
+
+        result = {
+            :entries => {},
+            :now => Time.now.to_i * 1000,
+        }
+
+        neo4j_query(<<~END_OF_QUERY, {:email => data[:email]}).each do |row|
+            MATCH (e:Entry)-[r:BELONGS_TO]->(u:User {email: $email})
+            RETURN e.sha1 AS sha1, r.timestamp AS t;
+        END_OF_QUERY
+            result[:entries][row['sha1']] = row['t']
+        end
+
+        respond(:result => result)
+    end
+
+    post '/jwt/get_voc' do
+        require_dashboard_jwt!
+        respond(:voc => @@voc_data)
+    end
+
 end
