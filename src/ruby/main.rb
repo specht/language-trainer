@@ -999,28 +999,35 @@ class Main < Sinatra::Base
         ud28 = Set.new()
         udall = Set.new()
 
+        tu = {}
+
         @@cache[:entries].each_pair do |sha1, users|
             is_voc = @@voc_data['words'].include?(sha1)
             is_form = @@sphinx_data['forms'].include?(sha1)
             users.each_pair do |email, t|
+                tu[email] ||= {:t1 => 0, :t7 => 0, :t28 => 0, :tall => 0}
                 if t > t1
                     td1 += 1
                     tvd1 += 1 if is_voc
                     tfd1 += 1 if is_form
+                    tu[email][:t1] += 1
                 end
                 if t > t7
                     td7 += 1
                     tvd7 += 1 if is_voc
                     tfd7 += 1 if is_form
+                    tu[email][:t7] += 1
                 end
                 if t > t28
                     td28 += 1
                     tvd28 += 1 if is_voc
                     tfd28 += 1 if is_form
+                    tu[email][:t28] += 1
                 end
                 tdall += 1
                 tvdall += 1 if is_voc
                 tfdall += 1 if is_form
+                tu[email][:tall] += 1
 
                 ud1 << email if t > t1
                 ud7 << email if t > t7
@@ -1055,7 +1062,8 @@ class Main < Sinatra::Base
             result[:user_top_list] << {
                 :email => email, 
                 :solved => @@cache[:users][email].size,
-                :last_activity => @@cache[:last_timestamp_for_user][email]
+                :last_activity => @@cache[:last_timestamp_for_user][email],
+                :st => tu[email]
             }
         end
         result[:unit_for_user] = {}
