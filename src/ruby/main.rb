@@ -274,6 +274,7 @@ class Main < Sinatra::Base
     end
 
     def self.update_version_for_user(email, version)
+        STDERR.puts "UPDATE VERSION: #{email} #{version}"
         return if @@cache[:latest_version_for_user][email] == version
         old_version_code = (@@cache[:latest_version_for_user][email] || '').split('+')[1].to_i
         new_version_code = version.split('+')[1].to_i
