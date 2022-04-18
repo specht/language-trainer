@@ -270,6 +270,20 @@ class Main < Sinatra::Base
         @@cache[:users] = {}
         @@cache[:entries] = {}
         @@cache[:last_timestamp_for_user] = {}
+        @@cache[:latest_version_for_user] = {}
+    end
+
+    def self.update_version_for_user(email, version)
+        return if @@cache[:latest_version_for_user][email] == version
+        old_version_code = (@@cache[:latest_version_for_user][email] || '').split('+')[1].to_i
+        new_version_code = version.split('+')[1].to_i
+        if new_version_code > old_version_code
+            neo4j_query(<<~END_OF_QUERY, {:email => email, :version => version})
+                MATCH (u:User {email: $email})
+                SET u.latest_version = $version;
+            END_OF_QUERY
+            @@cache[:latest_version_for_user][email] = version
+        end
     end
 
     def self.add_entry_to_cache(email, sha1, t)
@@ -308,11 +322,12 @@ class Main < Sinatra::Base
         STDERR.puts "Sphinx forms: #{@@sphinx_data['forms'].size}"
         self.init_cache()
         @@cache[:users] ||= {}
-        emails = $neo4j.neo4j_query(<<~END_OF_QUERY).map { |x| x['email'] }
-            MATCH (u:User) RETURN u.email AS email;
+        results = $neo4j.neo4j_query(<<~END_OF_QUERY).map { |x| {:email => x['email'], :latest_version => x['latest_version']} }
+            MATCH (u:User) RETURN u.email AS email, u.latest_version AS latest_version;
         END_OF_QUERY
         count = 0
-        emails.each do |email|
+        results.each do |row|
+            email = row[:email]
             rows = $neo4j.neo4j_query(<<~END_OF_QUERY, {:email => email}).each do |row|
                 MATCH (e:Entry)-[r:BELONGS_TO]->(u:User {email: $email}) RETURN r.timestamp AS t, e.sha1 AS sha1;
             END_OF_QUERY
@@ -321,8 +336,10 @@ class Main < Sinatra::Base
                 sha1 = row['sha1']
                 self.add_entry_to_cache(email, sha1, t)
             end
+            latest_version = row[:latest_version]
+            @@cache[:latest_version_for_user][email] = latest_version if latest_version
         end
-        STDERR.puts "Finished loading #{count} events from #{emails.size} users."
+        STDERR.puts "Finished loading #{count} events from #{results.size} users."
     end
 
     configure do
@@ -455,6 +472,9 @@ class Main < Sinatra::Base
                                 email = results.first['u'][:email]
                                 @session_user = @@user_info[email].dup
                                 @session_user[:email] = email
+                                if app_version
+                                    self.class.update_version_for_user(email, app_version)
+                                end
                             end
                         rescue
                             # something went wrong, delete the session
