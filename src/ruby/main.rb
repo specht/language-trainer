@@ -275,16 +275,16 @@ class Main < Sinatra::Base
 
     def self.update_version_for_user(email, version)
         STDERR.puts "UPDATE VERSION: #{email} #{version}"
-        return if @@cache[:latest_version_for_user][email] == version
-        old_version_code = (@@cache[:latest_version_for_user][email] || '').split('+')[1].to_i
-        new_version_code = version.split('+')[1].to_i
-        if new_version_code > old_version_code
-            neo4j_query(<<~END_OF_QUERY, {:email => email, :version => version})
-                MATCH (u:User {email: $email})
-                SET u.latest_version = $version;
-            END_OF_QUERY
-            @@cache[:latest_version_for_user][email] = version
-        end
+        # return if @@cache[:latest_version_for_user][email] == version
+        # old_version_code = (@@cache[:latest_version_for_user][email] || '').split('+')[1].to_i
+        # new_version_code = version.split('+')[1].to_i
+        # if new_version_code > old_version_code
+        #     neo4j_query(<<~END_OF_QUERY, {:email => email, :version => version})
+        #         MATCH (u:User {email: $email})
+        #         SET u.latest_version = $version;
+        #     END_OF_QUERY
+        #     @@cache[:latest_version_for_user][email] = version
+        # end
     end
 
     def self.add_entry_to_cache(email, sha1, t)
