@@ -435,9 +435,9 @@ class Main < Sinatra::Base
         if request.env['HTTP_X_SESSION_ID']
             sid = request.env['HTTP_X_SESSION_ID']
         end
-        app_version = nil
+        @session_app_version = nil
         if request.env['HTTP_X_APP_VERSION']
-            app_version = request.env['HTTP_X_APP_VERSION']
+            @session_app_version = request.env['HTTP_X_APP_VERSION']
         end
         @dashboard_jwt = nil
         @dashboard_user_email = nil
@@ -473,9 +473,6 @@ class Main < Sinatra::Base
                                 email = results.first['u'][:email]
                                 @session_user = @@user_info[email].dup
                                 @session_user[:email] = email
-                                # if app_version
-                                #     self.class.update_version_for_user(email, app_version)
-                                # end
                             end
                         rescue
                             # something went wrong, delete the session
@@ -492,7 +489,7 @@ class Main < Sinatra::Base
             if @dashboard_jwt
                 debug "[#{@dashboard_user_email.split('@').first}@jwt] #{request.path}"
             else
-                debug "[#{((@session_user || {})[:email] || 'anon').split('@').first}@#{app_version || 'unknown'}] #{request.path}"
+                debug "[#{((@session_user || {})[:email] || 'anon').split('@').first}@#{@session_app_version || 'unknown'}] #{request.path}"
             end
         end
     end
@@ -891,6 +888,10 @@ class Main < Sinatra::Base
     end
 
     post '/api/whoami' do
+        require_user!
+        if @session_app_version
+            self.class.update_version_for_user(@session_user[:email], @session_app_version)
+        end
         respond(whoami())
     end
 
