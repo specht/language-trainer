@@ -439,6 +439,10 @@ class Main < Sinatra::Base
         if request.env['HTTP_X_APP_VERSION']
             @session_app_version = request.env['HTTP_X_APP_VERSION']
         end
+        @session_user_agent = nil
+        if request.env['HTTP_USER_AGENT']
+            @session_user_agent = request.env['HTTP_USER_AGENT']
+        end
         @dashboard_jwt = nil
         @dashboard_user_email = nil
         @dashboard_user_display_name = nil
@@ -489,7 +493,7 @@ class Main < Sinatra::Base
             if @dashboard_jwt
                 debug "[#{@dashboard_user_email.split('@').first}@jwt] #{request.path}"
             else
-                debug "[#{((@session_user || {})[:email] || 'anon').split('@').first}@#{@session_app_version || 'unknown'}] #{request.path}"
+                debug "[#{((@session_user || {})[:email] || 'anon').split('@').first}@#{@session_app_version || 'unknown'}] #{request.path} #{@session_user_agent}"
             end
         end
     end
