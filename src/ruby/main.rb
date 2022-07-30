@@ -415,7 +415,7 @@ class Main < Sinatra::Base
 
     before '*' do
         if DEVELOPMENT
-            response.headers['Access-Control-Allow-Origin'] = "http://localhost:8025"
+            response.headers['Access-Control-Allow-Origin'] = "http://localhost:8686"
         else
             if request.path[0, 5] == '/jwt/'
                 response.headers['Access-Control-Allow-Origin'] = "https://dashboard.gymnasiumsteglitz.de"
@@ -423,7 +423,7 @@ class Main < Sinatra::Base
                 response.headers['Access-Control-Allow-Origin'] = "https://agr.gymnasiumsteglitz.de"
             end
         end
-        response.headers['Access-Control-Request-Headers'] = 'X-SESSION-ID,X-JWT'
+        response.headers['Access-Control-Request-Headers'] = 'X-SESSION-ID,X-JWT,X-APP-VERSION'
         @latest_request_body = nil
         @latest_request_body_parsed = nil
         # before any API request, determine currently logged in user via the provided session ID
@@ -537,17 +537,17 @@ class Main < Sinatra::Base
 
     options '/api/*' do
         if DEVELOPMENT
-            response.headers['Access-Control-Allow-Origin'] = "http://localhost:8025"
+            response.headers['Access-Control-Allow-Origin'] = "http://localhost:8686"
         else
             response.headers['Access-Control-Allow-Origin'] = "https://agr.gymnasiumsteglitz.de"
         end
-        response.headers['Access-Control-Allow-Headers'] = "Content-Type, Access-Control-Allow-Origin,X-SESSION-ID"
-        response.headers['Access-Control-Request-Headers'] = 'X-SESSION-ID'
+        response.headers['Access-Control-Allow-Headers'] = "Content-Type, Access-Control-Allow-Origin,X-SESSION-ID,X-APP-VERSION"
+        response.headers['Access-Control-Request-Headers'] = 'X-SESSION-ID,X-APP-VERSION'
     end
 
     options '/jwt/*' do
         if DEVELOPMENT
-            response.headers['Access-Control-Allow-Origin'] = "http://localhost:8025"
+            response.headers['Access-Control-Allow-Origin'] = "http://localhost:8686"
         else
             response.headers['Access-Control-Allow-Origin'] = "https://dashboard.gymnasiumsteglitz.de"
         end
@@ -981,6 +981,14 @@ class Main < Sinatra::Base
         END_OF_QUERY
         shop_items = get_shop_items()
         respond(:result => 'Herzlichen Glückwunsch, du besitzt nun Hades, den Herrscher der Unterwelt. Synchronisiere deine App bitte einmal, dann kannst du ihn auswählen.')
+    end
+
+    get '/to_google_play' do
+        redirect 'https://play.google.com/store/apps/details?id=de.gymnasiumsteglitz.agr_app', 302
+    end
+
+    get '/to_app_store' do
+        redirect 'https://apps.apple.com/de/app/id1597703481', 302
     end
 
     get '/*' do
