@@ -983,11 +983,11 @@ class Main < Sinatra::Base
         respond(:result => 'Herzlichen Glückwunsch, du besitzt nun Hades, den Herrscher der Unterwelt. Synchronisiere deine App bitte einmal, dann kannst du ihn auswählen.')
     end
 
-    get '/to_google_play' do
+    get '/togoogleplay' do
         redirect 'https://play.google.com/store/apps/details?id=de.gymnasiumsteglitz.agr_app', 302
     end
 
-    get '/to_app_store' do
+    get '/toappstore' do
         redirect 'https://apps.apple.com/de/app/id1597703481', 302
     end
 
