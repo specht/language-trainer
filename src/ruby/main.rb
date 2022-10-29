@@ -127,12 +127,10 @@ class SetupDatabase
         10.times do
             begin
                 neo4j_query("MATCH (n) RETURN n LIMIT 1;")
-                break unless ENV['DASHBOARD_SERVICE'] == 'ruby'
-                transaction do
-                    debug "Setting up constraints and indexes..."
-                    setup_constraints_and_indexes(['LoginCode/tag', 'User/email', 'Entry/sha1'], [])
-                    neo4j_query("CREATE INDEX BELONGS_TO_timestamp FOR ()-[r:BELONGS_TO]-() ON (r.timestamp)")
-                end
+                # break unless ENV['DASHBOARD_SERVICE'] == 'ruby'
+                debug "Setting up constraints and indexes..."
+                setup_constraints_and_indexes(['LoginCode/tag', 'User/email', 'Entry/sha1'], [])
+                neo4j_query("CREATE INDEX BELONGS_TO_timestamp FOR ()-[r:BELONGS_TO]-() ON (r.timestamp)")
                 debug "Setup finished."
                 break
             rescue
@@ -233,7 +231,7 @@ class Main < Sinatra::Base
 
     configure do
         self.collect_data() unless defined?(SKIP_COLLECT_DATA) && SKIP_COLLECT_DATA
-        if ENV['SERVICE'] == 'ruby' && (File.basename($0) == 'thin' || File.basename($0) == 'pry.rb')
+        if ENV['SERVICE'] == 'ruby'
             setup = SetupDatabase.new()
             setup.setup(self)
         end
