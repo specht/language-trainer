@@ -130,7 +130,7 @@ class SetupDatabase
                 # break unless ENV['DASHBOARD_SERVICE'] == 'ruby'
                 debug "Setting up constraints and indexes..."
                 setup_constraints_and_indexes(['LoginCode/tag', 'User/email', 'Entry/sha1'], [])
-                neo4j_query("CREATE INDEX BELONGS_TO_timestamp FOR ()-[r:BELONGS_TO]-() ON (r.timestamp) IF NOT EXISTS")
+                neo4j_query("CREATE INDEX BELONGS_TO_timestamp IF NOT EXISTS FOR ()-[r:BELONGS_TO]-() ON (r.timestamp)")
                 debug "Setup finished."
                 break
             rescue
