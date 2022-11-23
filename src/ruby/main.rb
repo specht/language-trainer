@@ -445,6 +445,14 @@ class Main < Sinatra::Base
         data = parse_request_data(:required_keys => [:email])
         data[:email] = data[:email].strip.downcase
         unless @@user_info.include?(data[:email])
+            candidates = @@user_info.keys.select do |x|
+                x[0, data[:email].size] == data[:email]
+            end
+            if candidates.size == 1
+                data[:email] = candidates.first
+            end
+        end
+        unless @@user_info.include?(data[:email])
             sleep 3.0
             respond(:error => 'no_invitation_found')
         end
