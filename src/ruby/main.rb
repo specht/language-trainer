@@ -498,6 +498,7 @@ class Main < Sinatra::Base
                 end
             end
         end
+        debug "Login for #{email}: #{tag} / #{random_code}"
         response_hash = {:tag => tag}
         respond(response_hash)
     end
