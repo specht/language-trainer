@@ -847,18 +847,20 @@ class Main < Sinatra::Base
         item = data[:item]
         assert(@@shop.include?(category))
         assert(@@shop[category].include?(item))
-        purchased_items = get_shop_items()[:items]
-        assert(!purchased_items.include?("#{data[:category]}/#{data[:item]}"))
-        price = @@shop[category][item]
-        current_coins = get_coins()
-        if price > current_coins
-            respond(:error => 'not_enough_coins')
+        transaction do
+            purchased_items = get_shop_items()[:items]
+            assert(!purchased_items.include?("#{data[:category]}/#{data[:item]}"))
+            price = @@shop[category][item]
+            current_coins = get_coins()
+            if price > current_coins
+                respond(:error => 'not_enough_coins')
+            end
+            neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :category => category, :item => item, :price => price})
+                MATCH (u: User{ email: $email})
+                MERGE (s:ShopItem {category: $category, item: $item})
+                CREATE (u)-[:PURCHASED {price: $price}]->(s);
+            END_OF_QUERY
         end
-        neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :category => category, :item => item, :price => price})
-            MATCH (u: User{ email: $email})
-            MERGE (s:ShopItem {category: $category, item: $item})
-            CREATE (u)-[:PURCHASED {price: $price}]->(s);
-        END_OF_QUERY
         shop_items = get_shop_items()
         respond(:new_shop_items => shop_items)
     end
