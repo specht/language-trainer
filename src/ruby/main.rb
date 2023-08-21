@@ -580,7 +580,7 @@ class Main < Sinatra::Base
             MATCH (l:LoginCode {tag: $tag})
             DETACH DELETE l;
         END_OF_QUERY
-        respond(:ok => 'yeah', :sid => session_id)
+        respond(:ok => 'yeah', :sid => session_id, :domain => user[:email].split('@')[1])
     end
 
     def require_user!
