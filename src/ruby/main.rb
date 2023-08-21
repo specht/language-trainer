@@ -471,7 +471,7 @@ class Main < Sinatra::Base
             if @@allowed_suffixes.include?(suffix)
                 @@user_info[data[:email]] ||= {
                     :email => data[:email],
-                    :name => data[:email].split('@').first
+                    :name => data[:email].split('@').first.split('.').map { |x| x.capitalize }.join(' ')
                 }
             else
                 sleep 3.0
