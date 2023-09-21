@@ -695,6 +695,37 @@ class Main < Sinatra::Base
         end
     end
 
+    def get_voc_range_timestamp()
+        require_user!
+        timestamp = neo4j_query_expect_one(<<~END_OF_QUERY, {:email => @session_user[:email]})['timestamp']
+            MATCH (u: User { email: $email})
+            RETURN COALESCE(u.voc_range_timestamp, 0) AS timestamp;
+        END_OF_QUERY
+        timestamp
+    end
+
+    def get_voc_range()
+        require_user!
+        result = neo4j_query_expect_one(<<~END_OF_QUERY, {:email => @session_user[:email]})
+            MATCH (u: User { email: $email})
+            RETURN COALESCE(u.voc_range_start, 0) AS voc_range_start,
+                   COALESCE(u.voc_range_length, 0) AS voc_range_length;
+        END_OF_QUERY
+        [result['voc_range_start'], result['voc_range_length']]
+    end
+
+    def set_voc_range(range_start, range_length, timestamp)
+        require_user!
+        if timestamp > get_voc_range_timestamp()
+            neo4j_query(<<~END_OF_QUERY, {:email => @session_user[:email], :voc_range_start => range_start, :voc_range_length => range_length, :timestamp => timestamp})
+                MATCH (u: User { email: $email})
+                SET u.voc_range_start = $voc_range_start
+                SET u.voc_range_length = $voc_range_length
+                SET u.voc_range_timestamp = $timestamp;
+            END_OF_QUERY
+        end
+    end
+
     def get_color_scheme_timestamp()
         require_user!
         timestamp = neo4j_query_expect_one(<<~END_OF_QUERY, {:email => @session_user[:email]})['timestamp']
@@ -781,7 +812,9 @@ class Main < Sinatra::Base
             :color_scheme => get_color_scheme(),
             :color_scheme_timestamp => get_color_scheme_timestamp(),
             :font => get_font(),
-            :font_timestamp => get_font_timestamp()
+            :font_timestamp => get_font_timestamp(),
+            :voc_range => get_voc_range(),
+            :voc_range_timestamp => get_voc_range_timestamp(),
         }
         result
     end
@@ -796,9 +829,13 @@ class Main < Sinatra::Base
             :active_unit, :active_unit_timestamp,
             :avatar, :avatar_timestamp,
             :color_scheme, :color_scheme_timestamp,
-            :font, :font_timestamp],
-            :types => {:coins => Integer, :active_unit => Integer, :active_unit_timestamp => Integer,
-                       :avatar_timestamp => Integer, :color_scheme_timestamp => Integer, :font_timestamp => Integer})
+            :font, :font_timestamp,
+            :voc_range_start, :voc_range_length, :voc_range_timestamp],
+            :types => {:coins => Integer, :active_unit => Integer,
+                       :active_unit_timestamp => Integer, :avatar_timestamp => Integer,
+                       :color_scheme_timestamp => Integer, :font_timestamp => Integer,
+                       :voc_range_start => Integer, :voc_range_length => Integer,
+                       :voc_range_timestamp => Integer})
         if data[:coins]
             if data[:coins] > get_coins()
                 set_coins(data[:coins])
@@ -815,6 +852,9 @@ class Main < Sinatra::Base
         end
         if data[:font] && data[:font_timestamp]
             set_font(data[:font], data[:font_timestamp])
+        end
+        if data[:voc_range_start] && data[:voc_range_length] && data[:voc_range_timestamp]
+            set_voc_range(data[:voc_range_start], data[:voc_range_length], data[:voc_range_timestamp])
         end
         if @session_app_version
             self.class.update_version_for_user(@session_user[:email], @session_app_version)
