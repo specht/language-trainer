@@ -201,6 +201,16 @@ class Main < Sinatra::Base
                 }
             end
         end
+        @@allowed_suffixes = []
+        File.open('invitations-suffixes.txt') do |f|
+            f.each_line do |line|
+                line.strip!
+                next if line.empty? || line[0] == '#'
+                suffix = line.strip
+                raise "Invalid suffix format: #{suffix} (must start with @)" unless suffix[0] == '@'
+                @@allowed_suffixes << suffix
+            end
+        end
         @@user_info['max.mustermann@mail.gymnasiumsteglitz.de'] = {:name => 'Max Mustermann', :nc_login => 'max.mustermann'}
         @@shop = YAML.load(File.read('shop.yaml'))
         @@voc_data = JSON.load(File.read('/repos/agr-app/flutter/data/voc.json'))
@@ -361,6 +371,10 @@ class Main < Sinatra::Base
                             session_expiry = session[:expires]
                             if DateTime.parse(session_expiry) > DateTime.now
                                 email = results.first['u'][:email]
+                                @@user_info[email] ||= {
+                                    :email => email,
+                                    :name => email.split('@').first
+                                }
                                 @session_user = @@user_info[email].dup
                                 @session_user[:email] = email
                             end
@@ -453,8 +467,16 @@ class Main < Sinatra::Base
             end
         end
         unless @@user_info.include?(data[:email])
-            sleep 3.0
-            respond(:error => 'no_invitation_found')
+            suffix = '@' + data[:email].split('@')[1]
+            if @@allowed_suffixes.include?(suffix)
+                @@user_info[data[:email]] ||= {
+                    :email => data[:email],
+                    :name => data[:email].split('@').first.split('.').map { |x| x.capitalize }.join(' ')
+                }
+            else
+                sleep 3.0
+                respond(:error => 'no_invitation_found')
+            end
         end
         assert(@@user_info.include?(data[:email]))
         srand(Digest::SHA2.hexdigest(LOGIN_CODE_SALT).to_i + (Time.now.to_f * 1000000).to_i)
@@ -801,6 +823,7 @@ class Main < Sinatra::Base
     def whoami
         require_user!
         result = {
+            :email => @session_user[:email],
             :user_name => @session_user[:name],
             :nc_login => @session_user[:nc_login],
             :coins => get_coins(),
